@@ -81,11 +81,24 @@ async function exportCatalog(token, offset, limit) {
   if (!Array.isArray(products)) {
     const keys = response && typeof response === 'object' ? Object.keys(response) : [];
     const payloadKeys = payload && typeof payload === 'object' ? Object.keys(payload) : [];
-    throw new Error(
+    const details = {
+      status: response?.status ?? null,
+      responseCode: payload?.code ?? null,
+      responseMessage: payload?.message ?? null,
+      rootKeys: keys,
+      responseKeys: payloadKeys
+    };
+    const extraMessage =
+      payload?.message || response?.message
+        ? `, message: ${payload?.message || response?.message}`
+        : '';
+    const err = new Error(
       `Horoshop export returned invalid response (keys: ${keys.join(
         ', '
-      ) || 'none'}, response keys: ${payloadKeys.join(', ') || 'none'})`
+      ) || 'none'}, response keys: ${payloadKeys.join(', ') || 'none'}${extraMessage})`
     );
+    err.details = details;
+    throw err;
   }
   return products;
 }
@@ -399,7 +412,10 @@ async function syncHoroshopCatalog(jobId) {
     return { total, deleted: cleanupResult.rowCount || 0 };
   } catch (err) {
     if (jobId) {
-      await logService.log(jobId, 'error', 'Horoshop sync failed', { error: err.message });
+      await logService.log(jobId, 'error', 'Horoshop sync failed', {
+        error: err.message,
+        details: err.details || null
+      });
     }
     throw err;
   } finally {
