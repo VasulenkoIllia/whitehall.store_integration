@@ -1,9 +1,9 @@
 version: '3.9'
+name: whitehall_store
 
 services:
   db:
     image: postgres:16-alpine
-    container_name: whitehall_store_db
     environment:
       POSTGRES_USER: whitehall_store
       POSTGRES_PASSWORD: whitehall_store
@@ -25,7 +25,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: whitehall_store_app
     env_file:
       - .env
     environment:
