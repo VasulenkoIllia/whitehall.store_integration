@@ -1,0 +1,234 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --ink: #0f172a;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --surface: #ffffff;
+  --panel: #f8fbff;
+  --line: #e2e8f0;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(135deg, #f5f9ff 0%, #eef4ff 40%, #f8fbff 100%);
+  color: var(--ink);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.admin-layout {
+  min-height: 100vh;
+  background: transparent;
+}
+
+.main-header {
+  background: transparent;
+  padding: 24px 32px 10px;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  align-items: start;
+  gap: 20px;
+}
+
+.header-title {
+  margin: 0 !important;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.status-card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.15);
+  min-width: 200px;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.admin-content {
+  padding: 0 32px 48px;
+}
+
+.main-tabs {
+  background: var(--panel);
+  border-radius: 18px;
+  padding: 16px 20px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+}
+
+.grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.tab-section {
+  display: grid;
+  gap: 16px;
+}
+
+.tab-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.action-row {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+}
+
+.mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.mapping-rows {
+  display: grid;
+  gap: 12px;
+}
+
+.mapping-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(160px, 200px) 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.mapping-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mapping-header-toggle {
+  margin-bottom: 6px;
+}
+
+.mapping-actions {
+  display: flex;
+  align-items: flex-end;
+}
+
+.card {
+  border-radius: 18px !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.result-box {
+  background: #eef4ff;
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  min-height: 120px;
+}
+
+.logs-box {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 14px;
+  padding: 14px;
+  font-size: 12px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.truncate {
+  display: inline-block;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error-text {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.drawer-body {
+  display: grid;
+  gap: 16px;
+}
+
+.drawer-actions {
+  justify-content: flex-end;
+}
+
+.cron-item {
+  align-items: center;
+}
+
+.cron-text {
+  display: grid;
+  gap: 4px;
+}
+
+.cron-details {
+  display: grid;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.cron-field {
+  width: 100%;
+}
+
+.cron-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.settings-modal .ant-modal-body {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+@media (max-width: 1024px) {
+  .main-header {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-content {
+    padding: 0 20px 40px;
+  }
+}
+
+@media (max-width: 720px) {
+  .mapping-row {
+    grid-template-columns: 1fr;
+  }
+}

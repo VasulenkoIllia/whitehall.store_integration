@@ -1,0 +1,1422 @@
+mergeSheets();
+function mergeSheets() {
+ var configs = [
+    { 
+      id: '1ovtpRg6_n9ws1986DBFHcGex9IDhrLjmzLV21Q1dB9w', //ДРОП SPORTWEAR_DEALER
+      sheetName: 'Лист1', 
+      columns: { article: 'B', size: 'F', quantity: 'E', price: 'G', extra: 'D'}
+    },
+    {
+      id: '1s_IqwvekpAWdvqoLG_xc2D8YwQK-hsHI_GA41-zJuhw', //transpon test
+      sheetName: 'Stock', 
+      columns: { article: 'A', size: 'B', quantity: 'C', price: 'D' }
+    },
+    { 
+      id: '1Z8H9Q8VeWz0_36wuJMj7KpiktvLsEqUWaSsWZ0NCRyw', //ofc_dropshipping idealsport
+      sheetName: 'OFC Dropshipping Items', 
+      columns: { article: 'F', size: 'G', quantity: 'I', price: 'H' }
+    },
+    { 
+      id: '1TnDlWw4m4pC72qFsmSLbuv-_jSEDOoG5el09FFM2bAY', //NikeShop RED.BOX.SNS
+      sheetName: 'Shoes', 
+      columns: { article: 'B', size: 'D', quantity: 'F', price: 'E', extra: 'C' }
+    },
+    { 
+      id: '1xd4wvljYBVwXTQ4V9Q4oL2LzxD8v7gOdd57p5JDb08k', //Drop vzuti
+      sheetName: 'Лист1', 
+      columns: { article: 'C', size: 'D', quantity: 'Z', price: 'E', extra: 'B'}
+    },
+    { 
+      id: '1tWyvhmomn8QFLR4BSMYERD3qtWlinSyBV6O0Nx3mxyA', //DROPSHIPPING CROSS UP
+      sheetName: '1', 
+      columns: { article: 'B', size: 'C', quantity: 'D', price: 'E' }
+    },
+    { 
+      id: '1YtY51wjxmMu0XaMR-M0DzVH4h5pwvZd2Bc0dkWQNBM0', //merezha.cross
+      sheetName: 'Аркуш1', 
+      columns: { article: 'A', size: 'D', quantity: 'C', price: 'G' }
+    },
+    { 
+      id: '1OMxsWn9jf6RYgKpiPI0E3Eif-Ykot5AmWlyQtAj0Cl0', //sneakers_market13
+      sheetName: 'Лист1', 
+      columns: { article: 'B', size: 'E', quantity: 'C', price: 'G' }
+    },
+    { 
+      id: '1a2RiNRcKAjptpyARfDYuZz-5U2G6B9Ww9d7ZmpdT5UY', //sevrukosha drop
+      sheetName: 'Наявність', 
+      columns: { article: 'D', size: 'C', quantity: 'Z', price: 'F' }
+    },
+    { 
+      id: '1SLudqOnFrgaBZJulRwW00V_T9M1ToCrRLuTJPncyz0A', //Дроп MYSIZE
+      sheetName: 'Лист1', 
+      columns: { article: 'B', size: 'C', quantity: 'Z', price: 'G' }
+    },
+    { 
+     id: '1GeTHvJdgg7snuHYY3Dlq507EETNmsnkWsfvbEGn65dE', //export_drop yes_original, виключив бо товари фігня там
+     sheetName: 'Лист1', 
+     columns: { article: 'B', size: 'C', quantity: 'D', price: 'E', extra: 'A' }
+    },
+    // { 
+    //   id: '18WtrpEbIbryazp8ioGYuf2tSiIwWkrJjO1xp-ePxz-I', //brooklyn copy
+    //   sheetName: 'filtered', 
+    //   columns: { article: 'A', size: 'B', quantity: 'D', price: 'C', extra: 'E' }
+    // },
+    {
+      id: '1sAlUnv4bO43bJdYe_j8jaAec06yuI4WHacg_pqNIM30', //7dreams copy
+      sheetName: 'shoes', 
+      columns: { article: 'A', size: 'C', quantity: 'Z', price: 'E', extra: 'B' }
+    },
+    { 
+     id: '1JjTvMglqone8RgXY_FRM2kSRr0WllU2nUTmBoPTVmks', //SPORT_ORIGINAL_UA ОДЯГ
+     sheetName: 'ВЗУТТЯ', 
+     columns: { article: 'B', size: 'C', quantity: 'D', price: 'F', extra: 'A' }
+    },
+    { 
+     id: '1JjTvMglqone8RgXY_FRM2kSRr0WllU2nUTmBoPTVmks', //SPORT_ORIGINAL_UA ВЗУТТЯ
+     sheetName: 'ОДЯГ', 
+     columns: { article: 'B', size: 'C', quantity: 'D', price: 'F', extra: 'A' }
+    },
+    { 
+     id: '1qN7SpzOtY0qNO2jvs7U5ZeJ3Z3eZmKFP7Cfy5jo5jkU', //SNEAKERIV | Drop
+     sheetName: 'Дроп', 
+     columns: { article: 'A', size: 'C', quantity: 'D', price: 'E', extra: 'B' }
+   },
+   { 
+     id: '10N4NzM1FQjP3WgWPwj7DD0B7N7-Y_BZb4vimG95H4oo', //Egoist Дроп
+     sheetName: 'Лист1', 
+     columns: { article: 'B', size: 'D', quantity: 'E', price: 'F', extra: 'A' }
+    },
+    { 
+     id: '175jbwCX_1w3Gv3vklFsWE7KOPikVdlr2GeomXr4gk5M', //Таблиця дроп Modni. Flow
+     sheetName: 'Лист1', 
+     columns: { article: 'B', size: 'C', quantity: 'D', price: 'F', extra: 'A' }
+   },
+    { 
+     id: '1nsue3rf6jDT1leMvFO8bA7wsTfnJOBTu5gQMG8u50a8', //duds in ua drop merged
+     sheetName: 'Аркуш1', 
+     columns: { article: 'B', size: 'J', quantity: 'F', price: 'G', extra: 'A' }
+    },
+
+    // { 
+    //   id: '1iZ5nozOt9RGW9XUqqHsGnC8_jlPXqrmBkPJe3Z-nkNg', //manual ROMME SHOP DROP
+    //   sheetName: 'Аркуш1', 
+    //   columns: { article: 'B', size: 'J', quantity: 'Z', price: 'E', extra: 'A' }
+    // },
+    // { 
+    //   id: '1xIR31bmRK1jNo0FxWSQfIGRu-S7Nwwd2b9FhsILCXrQ', //stacs manual
+    //   sheetName: 'filtered', 
+    //   columns: { article: 'B', size: 'C', quantity: 'D', price: 'E', extra: 'A'}
+    // },
+    { 
+      id: '1j8R9CqYyPZx_m4c--fPrfmkh1xrYt2dlwyWG4YwkFvw', //SneakerLand Дроп copy
+      sheetName: 'filtered', 
+      columns: { article: 'A', size: 'F', quantity: 'H', price: 'J', extra: 'B'}
+    },
+    { 
+      id: '1-7TwY0ehYqsV-Vr0df8SOcBfWKfH03Ivgoq_dbunS4I', //Copordrop.Дропшипінг
+      sheetName: 'Обувь', 
+      columns: { article: 'A', size: 'F', quantity: 'H', price: 'J', extra: 'C'}
+    },
+    // { 
+    //   id: '1RXQT_who_tnweX9pIkLqfBFi_R8GYSC8ivztDrQ7n2w', //Дропшипінг bro.reseller
+    //   sheetName: 'Товари', 
+    //   columns: { article: 'B', size: 'D', quantity: 'F', price: 'G', extra: 'A'}
+    // },
+    { 
+      id: '1P2rBnke0rjKkCDvyZp_Ihib0QHGh-8xz_rIOBdEZP1U', //ДРОП Solidniy Shop New
+      sheetName: 'Мужская обувь', 
+      columns: { article: 'A', size: 'D', quantity: 'F', price: 'H', extra: 'B'}
+    },
+    // { 
+    //   id: '1SxG8kfEDdTK2XFq_14oI-di9erGFp_4QWfmjXQl2qM8', //Дроп 7TONN
+    //   sheetName: '7TONN', 
+    //   columns: { article: 'A', size: 'G', quantity: 'H', price: 'I', extra: 'C'}
+    // },
+    { 
+      id: '14L1W-2q0s4DElKpLBl-NDzYzYSB380U5EfDgJOd4lKw', //Дропшипінг trainers_ua manual
+      sheetName: 'Лист1', 
+      columns: { article: 'C', size: 'J', quantity: 'G', price: 'F', extra: 'B'}
+    },
+    { 
+      id: '1r_eVxwZRbCefLyOE8ZJvKDALnl-d4RL4pGqC9kyXjxk', //Limited Stay
+      sheetName: 'Лист1', 
+      columns: { article: 'B', size: 'C', quantity: 'D', price: 'E', extra: 'A'}
+    },
+    { 
+      id: '1ovtpRg6_n9ws1986DBFHcGex9IDhrLjmzLV21Q1dB9w', //ДРОП SPORTWEAR_DEALER
+      sheetName: 'Лист1', 
+      columns: { article: 'B', size: 'F', quantity: 'E', price: 'G', extra: 'D'}
+    },
+    { 
+      id: '1Zku_0GSiiBXat7s05JUFeUlP7SeKIEMpBOXYfkfS4BQ', //TCROSS.shop
+      sheetName: 'Аркуш1', 
+      columns: { article: 'A', size: 'D', quantity: 'F', price: 'H', extra: 'B'}
+    },
+    { 
+      id: '1R39R6lc-zA9hHBpzcWgNQ0gF0FRt_t5P4Ns28jnzFY4', //1310
+      sheetName: '1310', 
+      columns: { article: 'B', size: 'D', quantity: 'H', price: 'G', extra: 'A'}
+    },
+    { 
+      id: '1W6ACzlt_MSb3E6mRbNjiBhKMIux8GD_So1ENPdnwk18', //ДРОП trainssy
+      sheetName: 'Лист1', 
+      columns: { article: 'A', size: 'D', quantity: 'F', price: 'I', extra: 'B'}
+    },
+    { 
+      id: '179T7u4T1188N0ZnorripD7mXhb6tw1B7n3dJwWwueUY', //Drop Stock
+      sheetName: 'Товари', 
+      columns: { article: 'D', size: 'E', quantity: 'H', price: 'I', extra: 'C'}
+    },
+    { 
+      id: '1IqrVWEUDdcuoYGdXtm7ZEUOtdMTViVfcgEuUF9P1w_4', //Дроп Dimasik
+      sheetName: 'Лист1', 
+      columns: { article: 'B', size: 'D', quantity: 'C', price: 'F', extra: 'A'}
+    },
+    { 
+      id: '1enA-UKR91NCy1EjzQ8UmYfPHpxD7Yo07T8dGs-tDXQc', //Дроп Таблиця PickUpShoes Оновлення кожних 6 годин
+      sheetName: 'Сайт Оновлена Основна', 
+      columns: { article: 'J', size: 'C', quantity: 'F', price: 'G', extra: 'A'}
+    },
+    { 
+      id: '1LcOCx7iTltLZrhUEJzvywU_ZZtMRKE0KVrA4SVWq8oE', //мій склад CRM
+      sheetName: 'Лист1', 
+      columns: { article: 'B',size: 'X', quantity: 'Z', price: 'G', extra: 'D' }
+    }, 
+    { 
+      id: '1LuC3gg3vLuDHPOVfWDwzUjb4jAY0qY-gVMxtS_qwfKM', //ручний склад
+      sheetName: 'Аркуш1', 
+      columns: { article: 'A', size: 'B', quantity: 'C', price: 'E', extra: 'F' }
+    },
+    { 
+      id: '1PN75brWi57ExzPHT1W1KKxTUB3tdosZ0XC18kZUaOWw', //setka
+      sheetName: 'setka_web', 
+      columns: { article: 'A', size: 'C', quantity: 'D', price: 'F', extra: 'B' }
+    },
+    { 
+      id: '1LcOCx7iTltLZrhUEJzvywU_ZZtMRKE0KVrA4SVWq8oE', //Supreme Hanes паки з таблиці мій склад CRM
+      sheetName: 'Drop Hanes', 
+      columns: { article: 'N',size: 'O', quantity: 'Z', price: 'P', extra: 'L' }
+    },
+
+  ];
+
+  var targetSpreadsheetId = '1ZQwbpvqudO58TOF0UA_bwtj_4GlBbUmQ96NQQ2X4rwA';
+  var targetSheetName = 'Аркуш1';
+
+  var targetSpreadsheet = SpreadsheetApp.openById(targetSpreadsheetId);
+  var targetSheet = targetSpreadsheet.getSheetByName(targetSheetName);
+
+  // Очищення аркушу перед початком роботи
+  targetSheet.clear();
+
+  // Додавання заголовків у перший рядок
+  targetSheet.appendRow(["Артикул", "Розмір", "Кількість", "Дроп", "Ціна", "Назва", "Постачальник"]);
+
+  var targetRangeStartRow = 2;
+
+  var percentageSheet = targetSpreadsheet.getSheetByName('Запуск скриптів');
+  var percentages = {};
+  
+  // Отримання націнки для кожного постачальника з аркуша "Запуск скриптів"
+  var percentageData = percentageSheet.getRange(1, 1, percentageSheet.getLastRow(), 2).getValues();
+  percentageData.forEach(function(row) {
+    var supplier = row[0]; // Назва постачальника
+    var markup = parseFloat(row[1]); // Націнка
+    percentages[supplier] = markup || 0; // Якщо націнка не вказана, використовуємо 0
+  });
+
+  var allData = [];
+
+  configs.forEach(function(config) {
+    var sheet = SpreadsheetApp.openById(config.id).getSheetByName(config.sheetName);
+    if (!sheet) {
+      Logger.log('Лист не знайдено: ' + config.sheetName + ' у таблиці ' + config.id);
+      return;
+    }
+
+    var lastRow = sheet.getLastRow();
+    var data = sheet.getDataRange().getValues();
+
+    var articleIndex = config.columns.article.charCodeAt(0) - 65;
+    var sizeIndex = config.columns.size.charCodeAt(0) - 65;
+    var quantityIndex = config.columns.quantity.charCodeAt(0) - 65;
+    var priceIndex = config.columns.price.charCodeAt(0) - 65;
+    var extraIndex = config.columns.extra ? config.columns.extra.charCodeAt(0) - 65 : null;
+
+    var fileName = DriveApp.getFileById(config.id).getName();
+    var supplierMarkup = percentages[fileName] || 0; // Отримуємо націнку для постачальника або 0
+for (var i = 1; i < lastRow; i++) {
+  var article = data[i][articleIndex] || '';
+  var size = data[i][sizeIndex] || '';
+  var rawQuantity = data[i][quantityIndex];
+  var price = parseFloat(data[i][priceIndex]) || 0;
+
+  // ❗ Пропускаємо товари без ціни
+  if (!price || price === 0 || isNaN(price)) {
+    continue;
+  }
+
+  // Якщо 0 → пропускаємо товар
+  if (rawQuantity === 0 || rawQuantity === "0") {
+    continue;
+  }
+
+  // Якщо пусто → ставимо 1
+  var quantity = rawQuantity === "" ? 1 : parseInt(rawQuantity, 10);
+
+  if (supplierMarkup === 0) {
+    var pricePlusPercentage = price;
+  } else {
+    var pricePlusPercentage = price * (1 + supplierMarkup / 100);
+    // Додаємо 500 грн якщо маржа менша 500
+    if (pricePlusPercentage - price < 500) {
+      pricePlusPercentage = price + 500;
+    }
+  }
+
+  // Округлюємо ціну до найближчого кратного 10
+  var roundedPrice = Math.ceil(pricePlusPercentage / 10) * 10;
+
+  var extra = extraIndex !== null ? data[i][extraIndex] || '' : '';
+
+  if (size.toString().includes(',')) {
+    size = size.toString().replace(/\,/g, '.');
+  }
+
+  var newRow = [
+    article,
+    size,
+    quantity,
+    parseFloat(price.toFixed(2)),
+    parseFloat(roundedPrice.toFixed(2)),
+    extra,
+    fileName
+  ];
+
+  allData.push(newRow);
+}
+
+  });
+
+  if (allData.length > 0) {
+    var targetRange = targetSheet.getRange(targetRangeStartRow, 1, allData.length, 7);
+    targetRange.setValues(allData);
+  } else {
+    Logger.log('Немає даних для вставки');
+  } // Виклик другої функції після завершення основного коду
+  removeDuplicatesWithMinPriceAndPriority();
+  
+  Logger.log("Виклик другої функції успішно завершено");
+}
+
+function removeDuplicatesWithMinPriceAndPriority() {
+  // Введіть ідентифікатор таблиці (spreadsheet ID) та назву листа (sheet name) тут
+  var spreadsheetId = '1ZQwbpvqudO58TOF0UA_bwtj_4GlBbUmQ96NQQ2X4rwA'; // Замініть на ваш ID таблиці
+  var sheetName = 'Аркуш1'; // Замініть на назву вашого листа
+
+  // Отримуємо таблицю і лист
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  var sheet = spreadsheet.getSheetByName(sheetName);
+
+  if (!sheet) {
+    Logger.log('Лист з назвою "' + sheetName + '" не знайдено.');
+    return;
+  }
+
+  // Отримуємо всі дані з аркуша
+  var data = sheet.getDataRange().getValues();
+  var header = data[0]; // Заголовки
+  data.shift(); // Видаляємо заголовки для обробки лише даних
+
+  // Об'єкт для збереження унікальних артикулів+розмірів з мінімальною ціною
+  var uniqueArticles = {};
+  
+  // Встановлюємо рівні пріоритету постачальників
+  var highPrioritySuppliers = ['Ручний склад']; // Пріоритет 1 (найвищий)'мій склад з CRM'
+  var mediumPrioritySuppliers = ['мій склад з CRM']; // Пріоритет 2 (середній)
+  
+  
+  data.forEach(function(row) {
+    var article = row[0]; // Артикул
+    var size = row[1]; // Розмір
+    var key = article + '_' + size; // Унікальний ключ: артикул+розмір
+    var price = parseFloat(row[4]); // Ціна
+    var supplier = row[6]; // Постачальник
+
+    if (!uniqueArticles[key]) {
+      uniqueArticles[key] = row; // Додаємо новий артикул+розмір
+    } else {
+      var existingRow = uniqueArticles[key];
+      var existingPrice = parseFloat(existingRow[4]);
+      var existingSupplier = existingRow[6];
+      
+      // Функція для визначення пріоритету постачальника
+      function getSupplierPriority(supplier) {
+        if (highPrioritySuppliers.indexOf(supplier) > -1) {
+          return 1; // Пріоритет 1
+        } else if (mediumPrioritySuppliers.indexOf(supplier) > -1) {
+          return 2; // Пріоритет 2
+        } else {
+          return 3; // Інші постачальники
+        }
+      }
+
+      var currentSupplierPriority = getSupplierPriority(supplier);
+      var existingSupplierPriority = getSupplierPriority(existingSupplier);
+
+      if (currentSupplierPriority < existingSupplierPriority) {
+        // Оновлюємо, якщо поточний постачальник має вищий пріоритет
+        uniqueArticles[key] = row;
+      } else if (currentSupplierPriority === existingSupplierPriority) {
+        // Якщо постачальники мають однаковий пріоритет, порівнюємо за ціною
+        if (price < existingPrice) {
+          uniqueArticles[key] = row; // Оновлюємо, якщо поточна ціна менша
+        }
+      }
+    }
+  });
+
+  // Формуємо масив для вставки з унікальними артикульними рядками
+  var newData = [header]; // Додаємо заголовки
+  for (var key in uniqueArticles) {
+    newData.push(uniqueArticles[key]);
+  } // Сортування по артикулу (колонка 0)
+  newData.sort(function(a, b) {
+    return String(a[0]).localeCompare(String(b[0])); // Приводимо артикул до рядка для коректного порівняння
+  });
+
+  // Очищаємо аркуш і вставляємо унікальні дані
+  sheet.clear();
+  sheet.getRange(1, 1, newData.length, newData[0].length).setValues(newData);
+}
+function removeDuplicatesWithMinPriceAndPriority() {
+  // Введіть ідентифікатор таблиці (spreadsheet ID) та назву листа (sheet name) тут
+  var spreadsheetId = '1ZQwbpvqudO58TOF0UA_bwtj_4GlBbUmQ96NQQ2X4rwA'; // Замініть на ваш ID таблиці
+  var sheetName = 'Аркуш1'; // Замініть на назву вашого листа
+
+  // Отримуємо таблицю і лист
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  var sheet = spreadsheet.getSheetByName(sheetName);
+
+   if (!sheet) {
+    Logger.log('Лист з назвою "' + sheetName + '" не знайдено.');
+    return;
+  }
+
+  // Отримуємо всі дані з аркуша
+  var data = sheet.getDataRange().getValues();
+  var header = data[0]; // Заголовки
+  data.shift(); // Видаляємо заголовки для обробки лише даних
+
+  // Об'єкт для збереження унікальних артикулів+розмірів з мінімальною ціною
+  var uniqueArticles = {};
+
+  data.forEach(function(row) {
+    var article = row[0]; // Артикул
+    var size = row[1]; // Розмір
+    var key = article + '_' + size; // Унікальний ключ: артикул+розмір
+    var price = parseFloat(row[4]); // Ціна
+    var supplier = row[6]; // Постачальник
+
+    if (!uniqueArticles[key]) {
+      uniqueArticles[key] = row; // Додаємо новий артикул+розмір
+    } else {
+      var existingRow = uniqueArticles[key];
+      var existingPrice = parseFloat(existingRow[4]);
+
+      // Порівняння ціни та оновлення, якщо знайдено нижчу ціну
+      if (price < existingPrice) {
+        uniqueArticles[key] = row; // Оновлюємо, якщо поточна ціна менша
+      } else if (price === existingPrice) {
+        // Вибір постачальника за пріоритетом (якщо потрібно)
+        var prioritySuppliers = ['supplier1', 'supplier2']; // Додайте постачальників з вищим пріоритетом
+        if (prioritySuppliers.indexOf(supplier) > -1 && prioritySuppliers.indexOf(existingRow[6]) === -1) {
+          uniqueArticles[key] = row; // Оновлюємо, якщо постачальник в пріоритеті
+        }
+      }
+    }
+  });
+
+  // Формуємо масив для вставки з унікальними артикульними рядками
+  var newData = [header]; // Додаємо заголовки
+  for (var key in uniqueArticles) {
+    newData.push(uniqueArticles[key]);
+  }
+
+  // Очищаємо аркуш і вставляємо унікальні дані
+  sheet.clear();
+  sheet.getRange(1, 1, newData.length, newData[0].length).setValues(newData);
+}
+function deleteRowsWithKeywords() {
+  // Визначте ID вашої таблиці та назву листа
+  var spreadsheetId = '1ZQwbpvqudO58TOF0UA_bwtj_4GlBbUmQ96NQQ2X4rwA'; // Замініть на ID вашого Google Sheets документа
+  var sheetName = 'Аркуш1'; // Замініть на назву вашого листа
+  var logSheetName = 'Журнал'; // Назва листа для запису оброблених слів
+  var statusSheetName = 'Запуск скриптів'; // Назва листа для повідомлення про завершення
+
+  // Ключові слова для видалення
+  var keywords = [
+    'Таблетки', 'Капсули', 'Порошок', 'Батончик', 'Рідина', 'Шейкер', 'Софт', 'Тріко', 'Плавки',
+    'Бутси', 'Сороконіжки', 'Arena', 'CMP', 'Saucony', 'Rains', 'Falke', 'Under Armour',
+    'Helly', 'Skechers', '47 Brand', 'New Era', 'PIAZZA', 'GFA', 'CAPSLAB', 'Eastpak',
+    'Lyle & Scott', 'AUSTRALIAN ESSENTIALS', 'JEEP', 'Ellesse'
+  ];
+
+  // Відкриття таблиці та листа
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  var sheet = spreadsheet.getSheetByName(sheetName);
+  
+  // Відкриття або створення листа для журналу
+  var logSheet = spreadsheet.getSheetByName(logSheetName);
+  if (!logSheet) {
+    logSheet = spreadsheet.insertSheet(logSheetName);
+  }
+
+  // Відкриття або створення листа для статусу
+  var statusSheet = spreadsheet.getSheetByName(statusSheetName);
+  if (!statusSheet) {
+    statusSheet = spreadsheet.insertSheet(statusSheetName);
+  }
+
+  // Отримання останнього обробленого ключового слова
+  var lastRow = logSheet.getLastRow();
+  var lastKeyword = lastRow > 0 ? logSheet.getRange(lastRow, 1).getValue() : null;
+
+  // Знаходимо індекс останнього обробленого слова
+  var startIndex = 0;
+  if (lastKeyword) {
+    startIndex = keywords.indexOf(lastKeyword);
+  }
+
+  // Перевірка чи є що обробляти після останнього ключового слова
+  if (startIndex < 0 || startIndex >= keywords.length) {
+    Logger.log('Усі ключові слова вже оброблені або слово не знайдено в списку.');
+    
+    // Оновлення статусу про завершення обробки
+    statusSheet.getRange('C2').setValue('Фільтрацію завершено');
+    return;
+  }
+
+  // Проходимо через кожне ключове слово, починаючи з останнього обробленого
+  for (var k = startIndex; k < keywords.length; k++) {
+    // Отримання всього діапазону даних
+    var lastRow = sheet.getLastRow();
+    var lastColumn = sheet.getLastColumn();
+    if (lastRow < 1) continue; // Перевірка, що є рядки для обробки
+
+    var range = sheet.getRange(1, 1, lastRow, lastColumn);
+
+    // Перевірка наявності фільтру
+    var filter = range.getFilter();
+    if (!filter) {
+      range.createFilter();
+      filter = range.getFilter();
+    }
+
+    // Налаштування фільтру для поточного ключового слова
+    var filterCriteria = SpreadsheetApp.newFilterCriteria().whenTextContains(keywords[k]).build();
+    filter.setColumnFilterCriteria(6, filterCriteria); // 6 - це колонка F
+
+    // Видалення всіх відфільтрованих рядків (як Ctrl+Shift+Down+Delete)
+    var filteredRange = sheet.getDataRange();
+    var filteredValues = filteredRange.getValues();
+
+    for (var i = filteredValues.length - 1; i >= 0; i--) {
+      if (filteredValues[i][5] && filteredValues[i][5].toString().indexOf(keywords[k]) !== -1) {
+        sheet.deleteRow(i + 1); // Видалення рядка
+      }
+    }
+
+    // Зняття фільтрації
+    filter.remove();
+
+    // Записуємо оброблене слово у журнал
+    logSheet.appendRow([keywords[k]]);
+  }
+
+  // Оновлення статусу про завершення обробки
+  statusSheet.getRange('C2').setValue('Фільтрацію завершено');
+}
+
+function clearSheet() {
+  // Укажите идентификатор таблицы (Spreadsheet ID)
+  var spreadsheetId = '1ZQwbpvqudO58TOF0UA_bwtj_4GlBbUmQ96NQQ2X4rwA';
+
+  // Укажите название листа, который хотите очистить
+  var sheetName = 'Аркуш1';
+  var logSheetName = 'Журнал';
+
+  // Открываем таблицу по её идентификатору
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+
+  // Получаем лист по его названию
+  var sheet = spreadsheet.getSheetByName(sheetName);
+  var logSheet = spreadsheet.getSheetByName(logSheetName);
+
+  // Очищаем лист 'Аркуш1'
+  if (sheet) {
+    sheet.clear();
+    Logger.log('Лист "' + sheetName + '" успешно очищен.');
+  } else {
+    Logger.log('Лист с названием "' + sheetName + '" не найден.');
+  }
+
+  // Очищаем лист 'ЄжурналЄ'
+  if (logSheet) {
+    logSheet.clear();
+    Logger.log('Лист "' + logSheetName + '" успешно очищен.');
+  } else {
+    Logger.log('Лист с названием "' + logSheetName + '" не найден.');
+  }
+}
+
+const DATA_SHEET_NAME = "Stock";
+const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+
+const configSheet = ss.getSheetByName("Config");
+const dataSheet = ss.getSheetByName(DATA_SHEET_NAME);
+
+const configData = configSheet.getDataRange().getValues();
+const currentData = dataSheet.getDataRange().getValues();
+
+
+const configMap = configData.reduce((map, row) => {
+  map[row[0]] = row[1] - 1;
+  return map;
+}, {});
+const sku_idx = configMap["article"];
+
+
+function sendPostRequest(url, payload, maxRetries = 10) {
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+  };
+
+  let attempt = 0;
+  let response;
+  while (attempt < maxRetries) {
+    try {
+      response = UrlFetchApp.fetch(url, options);
+      return JSON.parse(response.getContentText());
+    } catch (error) {
+      attempt++;
+      console.warn(`Спроба ${attempt} на ${url} не вдалася: ${error.message}`);
+
+      if (attempt >= maxRetries) {
+        throw new Error(`Запит на ${url} не вдався після ${maxRetries} спроб. Помилка: ${error.message}`);
+      }
+      Utilities.sleep(1000);
+    }
+  }
+}
+
+
+// згенеровано чатгпт-----------
+function checkForChanges() {
+  const numRows = dataSheet.getLastRow(); // Отримуємо кількість заповнених рядків
+
+  if (numRows < 10) {
+    console.warn("Аркуш1 порожній або містить менше 10 заповнених рядків. Скрипт не виконується.");
+    return;
+  }
+  applyChanges(currentData);
+}
+// згенеровано чатгпт-----------
+
+
+function exportProductsSKUs(token) {
+  let fullData = [];
+  let offset = 0;
+  const lim = 500;
+
+  while (true) {
+    const data = sendPostRequest(`${domain}/api/catalog/export/`, {
+      "token": token,
+      "offset": offset * lim,
+      "limit": lim
+    }).response.products;
+
+    fullData = [...fullData, ...data];
+    if (data.length < lim) break;
+    offset++;
+  }
+
+  Logger.log(fullData);
+  return fullData.map(value => [value.article, value.supplier.value, value.presence.value?.ua, value.display_in_showcase, value.parent_article, value.price]);
+
+}
+
+
+function importProducts(products, token) {
+
+  const chunkSize = 500;
+
+  for (let i = 0; i < products.length; i += chunkSize) {
+    const productChunk = products.slice(i, i + chunkSize);
+    sendPostRequest(`${domain}/api/catalog/import/`, {
+      "token": token,
+      "products": productChunk,
+    });
+  }
+}
+
+function getPostachMap() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName("Хорошоп");
+  const values = sheet.getDataRange().getValues();
+
+  const postachMap = {};
+
+  // Пропускаємо заголовок (i = 1)
+  for (let i = 1; i < values.length; i++) {
+    const article = values[i][0];      // "Артикул" — стовпець A
+    const supplier = values[i][1];     // "Постачальник" — стовпець B
+    if (article) {
+      postachMap[article] = supplier;
+    }
+  }
+  Logger.log(postachMap);
+  return postachMap;
+}
+
+
+
+function applyChanges(data) {
+  const token = sendPostRequest(`${domain}/api/auth/`, {
+    "login": login,
+    "password": password,
+  }).response.token;
+
+
+  const postachMap = getPostachMap();   // Додано 14.08.2025 - оновлювати наявність зі Stock треба теж лише для drop
+  const forRequest = data
+    .map(arr => {
+      const article = arr[configMap["article"]];
+
+      // Пропускаємо, якщо постачальник не "drop"
+      if (postachMap[article] !== "drop") {
+        return null;
+      }
+
+      const product = {
+        "presence": { "ua": "В наявності" },
+        "display_in_showcase": true
+      };
+
+      for (const param in configMap) {
+        if (!arr[configMap[param]]) continue;
+        product[param] = arr[configMap[param]];
+      }
+      return product;
+    })
+    .filter(p => p !== null); // Видаляємо null
+
+
+  /*
+    // Формуємо forRequest з даних з Google Таблиці
+    const forRequest = data.map(arr => {
+      const product = { "presence": { "ua": "В наявності" }, "display_in_showcase": true };
+      for (const param in configMap) {
+        if (!arr[configMap[param]]) continue;
+        product[param] = arr[configMap[param]];
+      }
+      return product;
+    });
+  */
+
+  /*   ЗАМІНЕНО НА ЗЧИТУВАННЯ ПОТОЧНОГО СТАНУ ТОВАРІВ ІЗ АРКУШУ "Хорошоп"
+    // Отримуємо всі товари з магазину
+    const skus = exportProductsSKUs(token);
+  
+    // Перетворюємо skus у масив об'єктів
+    const formattedSkus = skus.map(sku => ({
+      article: sku[0], // Артикул
+      supplier: { value: sku[1] || null }, // Постачальник
+      presence: { ua: sku[2] }, // Наявність
+      display_in_showcase: sku[3], // Статус показу
+      parent_article: sku[4] // Батьківський артикул
+    }));
+   */
+
+  const formattedSkus = getProductsFromMirrorSheet();
+  // Створюємо масив skus із formattedSkus — для сумісності зі старою логікою
+  const skus = formattedSkus.map(p => [
+    p.article,
+    p.supplier?.value || "",
+    p.presence?.ua || "",
+    p.display_in_showcase,
+    p.parent_article || ""
+  ]);
+
+  // Визначаємо товари, всі модифікації яких відсутні в таблиці
+  const hiddenProducts = getHiddenProducts(formattedSkus, data);
+
+  // Формуємо skusForShow для показу одного товару з групи
+  const skusForShow = hiddenProducts.map(sku => {
+    // Знаходимо поточний стан товару
+    const currentProduct = formattedSkus.find(product => product.article === sku);
+    // Якщо товар уже відображається, не змінюємо його статус
+    if (currentProduct && currentProduct.display_in_showcase === 1.0) {
+      return null; // Пропускаємо цей товар
+    }
+    // Інакше додаємо його до skusForShow
+    return {
+      article: sku,
+      display_in_showcase: true,
+      presence: { ua: "Немає в наявності" },
+    };
+  }).filter(product => product !== null); // Видаляємо null з масиву
+  //  Logger.log(skusForShow);
+
+  // Формуємо skusForChange для приховання товарів, яких немає в таблиці
+  const skusForChange = skus.flatMap(sku => {                                              //   <--
+    // Якщо товар знаходиться в skusForShow, пропускаємо його
+    if (hiddenProducts.includes(sku[0])) {
+      return [];
+    }
+
+    const skuExists = currentData.some(row => row[sku_idx] === sku[0]);
+    if (!skuExists && sku[1] === "drop") {
+      // Знаходимо поточний стан товару
+      const currentProduct = formattedSkus.find(product => product.article === sku[0]);
+      // Якщо товар уже прихований, не змінюємо його статус
+      if ( // if (currentProduct && currentProduct.display_in_showcase === 0.0)  замінено 30.09.2025 (див смс)
+        currentProduct &&
+        currentProduct.display_in_showcase === 0.0 &&
+        currentProduct.presence?.ua === "Немає в наявності"
+      ) {
+        return null; // Пропускаємо цей товар
+      }
+      // Інакше додаємо його до skusForChange
+      return {
+        "article": sku[0],
+        "display_in_showcase": false,
+        "presence": { "ua": "Немає в наявності" } // "presence": { "ua": "В наявності" } замінено 30.09.2025 (див смс)
+      };
+    }
+    return [];
+  }).filter(product => product !== null); // Видаляємо null з масиву
+
+  // Відправляємо всі зміни
+  if (skusForChange.length || forRequest.length || skusForShow.length) {
+
+    //  Logger.log(saveDataToFile(skusForChange, 'skusForChange.txt'));
+    //  Logger.log(saveDataToFile(forRequest, 'forRequest.txt'));
+    //   Logger.log(saveDataToFile(skusForShow, 'skusForShow.txt'));
+
+    importProducts([...skusForChange, ...forRequest, ...skusForShow], token);
+  }
+}
+//////////////////////////////////////////////////////////////
+
+
+function GetSKURs(token) {
+  let fullData = [];
+  let offset = 0;
+
+  while (true) {
+    const data = sendPostRequest(`${domain}/api/catalog/export/`, {
+      "token": token,
+      "offset": offset * 500
+    }).response.products;
+
+    if (!Array.isArray(data)) {
+      Logger.log("Невірний формат `data`, очікується масив:", data);
+      break;
+    }
+
+    fullData = [...fullData, ...data];
+    if (data.length <= 500) break;
+    offset++;
+  }
+
+  return (fullData);
+}
+
+
+function Checker() {
+  const token = sendPostRequest(`${domain}/api/auth/`, {
+    "login": login,
+    "password": password,
+  }).response.token;
+
+
+  Logger.log(token);
+  let SKURs = GetSKURs(token);
+  let Hidden = getHiddenProducts(SKURs);
+  ShowUniqueArticles(Hidden);
+}
+
+function ShowUniqueArticles(SKU) {
+  // Отримуємо токен для автентифікації
+  const token = sendPostRequest(`${domain}/api/auth/`, {
+    login: login,
+    password: password,
+  }).response.token;
+
+
+  Logger.log(SKU);
+
+  // Формуємо масив об'єктів для оновлення
+  const skusForShow = SKU.map(sku => {
+    return {
+      article: sku, // Артикул з вхідного масиву
+      display_in_showcase: true,
+      presence: { ua: "Немає в наявності" },
+    };
+  });
+
+  // Якщо є дані для оновлення, викликаємо importProducts
+  if (skusForShow.length > 0) {
+    importProducts(skusForShow, token);
+  }
+  Logger.log('Опрацьовано ' + SKU.length)
+}
+const { domain, login, password } = getScriptProperties();
+
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('🛍️ Хорошоп')
+    .addItem('🔄 Оновити каталог', 'runUpdateCatalog')
+    
+    .addToUi();
+}
+
+function runUpdateCatalog() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  spreadsheet.toast("Оновлюю каталог...", "🔄 Оновлення", 2);
+
+  const numberOfProducts = main();
+
+    spreadsheet.toast('Встановлено задачу на оновлення Cloud-Service.', "✅ Успіх", 5);
+
+
+/*
+  if (numberOfProducts > 0) {
+    spreadsheet.toast(`Каталог оновлено. Отримано ${numberOfProducts} товарів.`, "✅ Успіх", 5);
+  } else {
+    spreadsheet.toast("Не вдалося оновити каталог.", "⚠️ Помилка", 5);
+  }
+  */
+}
+
+// Отримання даних із властивостей скрипта
+function getScriptProperties() {
+  const properties = PropertiesService.getScriptProperties();
+  return {
+    domain: properties.getProperty('domain'),
+    login: properties.getProperty('login'),
+    password: properties.getProperty('password')
+  };
+}
+
+function GetAu() {
+  auth(login, password, domain);
+}
+
+
+// Авторизація та отримання токену
+function auth(login, password, domain) {
+  const url = `${domain}/api/auth/`;
+  const payload = {
+    login: login,
+    password: password
+  };
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload)
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const data = JSON.parse(response.getContentText());
+    if (data.status === "OK") {
+      Logger.log('Ok!');
+      return data.response.token;
+    } else {
+      console.error(`Помилка авторизації: ${data.response.message || "Невідома помилка"}`);
+    }
+  } catch (error) {
+    console.error(`Помилка запиту: ${error.toString()}`);
+  }
+  return null;
+}
+
+// Експорт каталогу товарів з урахуванням offset та limit
+function exportCatalog(token, domain, offset = 0, limit = 500, includedParams = ["display_in_showcase"]) {
+  const url = `${domain}/api/catalog/export/`;
+  const payload = {
+    token: token,
+    offset: offset,
+    limit: limit
+    //,includedParams: includedParams//
+  };
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload)
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const data = JSON.parse(response.getContentText());
+    if (data.status === "OK") {
+      return data.response;
+    } else {
+      console.error(`Помилка експорту каталогу: ${data.response.message || "Невідома помилка"}`);
+    }
+  } catch (error) {
+    console.error(`Помилка запиту: ${error.toString()}`);
+  }
+  return null;
+}
+
+// Обробка даних каталогу
+function processCatalogData(catalogData) {
+  if (!catalogData || !catalogData.products) {
+    console.error("Дані каталогу відсутні або неправильні.");
+    return [];
+  }
+
+  const processedData = [];
+  catalogData.products.forEach(product => {
+
+    const rozmirTovaru = product.Rozmir?.value?.ua || '';
+    const rozmrBlizni = product.rozmrBlizni?.value?.ua || '';
+    const rozmrVzuttja = product.rozmrVzuttja?.value?.ua || '';
+
+    const display_in_showcase = product.display_in_showcase || "";
+    const presence = product.presence?.value?.ua || "";
+
+    let Flag = (display_in_showcase && (presence === "В наявності"))
+
+    const item = {
+      article: product.article,
+      title: product.title.ua || "Назва відсутня", // Якщо title.ua відсутній, використовуємо "Назва відсутня"
+      price: product.price,
+      image: product.gallery_common && product.gallery_common.length > 0 ? product.gallery_common[0] : product.images && product.images.length > 0 ? product.images[0] : "",
+      rozmir: rozmirTovaru + rozmrBlizni + rozmrVzuttja
+    };
+    if (Flag) { processedData.push(item) };
+  });
+
+  return processedData;
+}
+
+
+// Очищення аркуша
+function clearSheet(spreadsheetId, sheetName) {
+  const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  let sheet = spreadsheet.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(sheetName);
+    // Додаємо заголовки, якщо аркуш новий
+    sheet.appendRow(["Артикул", "Назва", "Ціна", "Зображення"]);
+  } else {
+    // Очищаємо дані в діапазоні A2:D
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.getRange(2, 1, lastRow - 1, 6).clearContent(); // Очищаємо A2:F
+    }
+  }
+
+  console.log("Аркуш підготовлено для запису даних.");
+}
+// Збереження даних у Google Sheets (пакетний запис)
+function saveToGoogleSheets(data, spreadsheetId, sheetName) {
+  const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  const sheet = spreadsheet.getSheetByName(sheetName);
+
+  if (!sheet) {
+    console.error("Аркуш не знайдено.");
+    return;
+  }
+
+  // Перетворюємо дані у двовимірний масив для запису
+  const rows = data.map(item => [item.article, item.title, item.price, item.image, item.rozmir]);
+
+  // Записуємо дані "пакетно"
+  sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  console.log(`Дані успішно збережено. Записано ${rows.length} рядків.`);
+}
+
+// Основна функція
+/*
+function main_old() {
+  const { domain, login, password } = getScriptProperties(); // Отримуємо дані з властивостей
+  const spreadsheetId = "1QzB9N68IQizZ7F15X2Y_VpIe7HEIbk-Gf2ekGEpz0II";
+  const sheetName = "Каталог";
+
+  // Авторизація та отримання токену
+  const token = auth(login, password, domain);
+  if (token) {
+    console.log(`Токен отримано: ${token}`);
+
+    let offset = 0;
+    const limit = 500; // Максимальна кількість товарів за один запит
+    let allProcessedData = [];
+
+    // Поступове отримання товарів
+    while (true) {
+      console.log(`Отримання товарів з offset=${offset}`);
+
+      // Експорт каталогу товарів
+      const catalogData = exportCatalog(token, domain, offset, limit, ["price", "price_old", "title", "images"]);
+      if (!catalogData || !catalogData.products || catalogData.products.length === 0) {
+        console.log("Товари закінчилися.");
+        break;
+      }
+
+      // Обробка даних каталогу
+      const processedData = processCatalogData(catalogData);
+      allProcessedData = allProcessedData.concat(processedData);
+
+      // Якщо отримано менше товарів, ніж limit, це означає, що це остання порція
+      if (catalogData.products.length < limit) {
+        console.log("Отримано останню порцію товарів.");
+        break;
+      }
+
+      // Збільшуємо offset для наступного запиту
+      offset += limit;
+    }
+
+    // Очищення аркуша перед записом нових даних
+    clearSheet(spreadsheetId, sheetName);
+
+    // Збереження всіх даних у Google Sheets
+    if (allProcessedData.length > 0) {
+      saveToGoogleSheets(allProcessedData, spreadsheetId, sheetName);
+      console.log(`Усього збережено товарів: ${allProcessedData.length}`);
+      return allProcessedData.length; // Повертаємо кількість товарів
+    } else {
+      console.log("Немає даних для збереження.");
+      return 0;
+    }
+  } else {
+    console.log("Не вдалося отримати токен.");
+    return 0;
+  }
+}
+*/
+
+function main() {
+  const { domain, login, password } = getScriptProperties();
+  const token = auth(login, password, domain);
+  if (!token) {
+    console.log("Не вдалося отримати токен");
+    return;
+  }
+
+  const payload = {
+    token,
+    domain,
+    spreadsheetId: "1QzB9N68IQizZ7F15X2Y_VpIe7HEIbk-Gf2ekGEpz0II",
+    sheetName: "Каталог"
+  };
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+
+  try {
+    const url = 'https://horoshop-catalog-service-933228594640.europe-west1.run.app/run-catalog';
+    const res = UrlFetchApp.fetch(url, options);
+    console.log('🔁 Запуск каталогу передано у сервіс. Результат: ' + res);
+    Logger.log('✅ Сервіс запущено. Відповідь: ' + res.getResponseCode());
+  } catch (err) {
+    Logger.log('❌ Помилка при виклику сервісу: ' + err);
+  }
+
+
+
+
+}
+function getHiddenProducts(fullData) {
+  // Групуємо товари за parent_article
+  const groupedByParent = fullData.reduce((acc, product) => {
+    const parent = product.parent_article;
+    if (!acc[parent]) {
+      acc[parent] = [];
+    }
+    acc[parent].push(product);
+    return acc;
+  }, {});
+
+  // Результуючий масив
+  const result = [];
+
+  // Перевіряємо кожну групу
+  for (const parent in groupedByParent) {
+    const products = groupedByParent[parent];
+    //Logger.log(parent);
+    // Перевіряємо, чи всі товари в групі мають display_in_showcase = 0.0
+    const allHidden = products.every(product => product.display_in_showcase === 0.0);
+
+    // Перевіряємо, чи хоча б один товар у групі має supplier.value = 'drop'
+    const hasDropSupplier = products.some(product => product.supplier?.value === 'drop');
+
+    // Якщо обидві умови виконуються, додаємо один з товарів до результату
+    if (allHidden && hasDropSupplier && products.length > 0) {
+      // Беремо перший товар з групи, який має supplier.value = 'drop'
+      const selectedProduct = products.find(product => product.supplier?.value === 'drop');
+      if (selectedProduct) {
+        Logger.log(selectedProduct.article);
+        result.push(selectedProduct.article);
+      }
+    }
+  }
+  return result;
+
+}
+function saveDataToFile(data, filename) {
+  // Перетворюємо дані у JSON-рядок
+  const dataString = JSON.stringify(data, null, 2);
+
+  // Створюємо файл на Google Диску
+  const file = DriveApp.createFile(filename, dataString, MimeType.PLAIN_TEXT);
+
+  // Повертаємо URL файлу
+  return file.getUrl();
+}
+
+function GetData() {
+  const token = sendPostRequest(`${domain}/api/auth/`, {
+    login: login,
+    password: password,
+  }).response.token;
+
+  const skuData = GetSKURs(token);
+
+  // Зберігаємо дані у файл на Google Диску
+  const fileUrl = saveDataToFile(skuData, 'sku_data.txt');
+
+  // Виводимо посилання на файл у консоль
+  console.log('Дані збережено у файл на Google Диску:', fileUrl);
+}
+
+
+function X() {
+  const token = sendPostRequest(`${domain}/api/auth/`, {
+    "login": login,
+    "password": password,
+  }).response.token;
+
+
+  // Отримуємо всі товари з магазину
+  const skus = exportProductsSKUs(token);
+
+  // Перетворюємо skus у масив об'єктів
+  const formattedSkus = skus.map(sku => ({
+    article: sku[0], // Артикул
+    supplier: { value: sku[1] || null }, // Постачальник
+    presence: { ua: sku[2] }, // Наявність
+    display_in_showcase: sku[3], // Статус показу
+    parent_article: sku[4] // Батьківський артикул
+  }));
+
+  Logger.log(formattedSkus);
+
+}
+
+
+
+function Y() {
+
+  Logger.log(getProductsFromMirrorSheet());
+
+}
+function GetHoroshop() {
+  const url = 'https://horoshop-service-933228594640.europe-west1.run.app/api/sync';
+
+  Logger.log('Функцію перенесено в Google Cloud ' + url);
+
+  const options = {
+    method: 'get', 
+    muteHttpExceptions: true,
+  };
+
+  try {
+   // const response = UrlFetchApp.fetch(url, options);
+    Logger.log('✅ Сервіс запущено');
+  } catch (err) {
+    Logger.log('❌ Помилка при виклику сервісу: ' + err);
+  }
+  //https://horoshop-service-933228594640.europe-west1.run.app/api/sync
+  
+/*
+  const token = sendPostRequest(`${domain}/api/auth/`, {
+    "login": login,
+    "password": password,
+  }).response.token;
+
+
+  const skus = exportProductsSKUs(token);
+
+  // Перетворюємо skus у масив об'єктів
+  const formattedSkus = skus.map(sku => ({
+    article: sku[0], // Артикул
+    supplier: { value: sku[1] || null }, // Постачальник
+    presence: { ua: sku[2] }, // Наявність
+    display_in_showcase: sku[3], // Статус показу
+    parent_article: sku[4], // Батьківський артикул
+    price: sku[5] // ціна
+  }));
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Хорошоп");
+
+
+
+  const headers = [
+    "Артикул",
+    "Постачальник",
+    "Наявність (UA)",
+    "Ціна",
+    "Статус показу",
+    "Батьківський артикул"
+  ];
+
+
+
+  // Формуємо дані для виводу
+  const data = formattedSkus.map(item => [
+    item.article,
+    item.supplier.value,
+    item.presence.ua,
+    item.price,
+    item.display_in_showcase,
+    item.parent_article
+  ]);
+
+
+  if (data.length > 0) {
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(2, 1, data.length, headers.length).setValues(data);
+  }
+
+
+  for (let i = 1; i <= headers.length; i++) {
+    sheet.autoResizeColumn(i);
+  }
+  */
+}
+
+
+//////
+
+function getProductsFromMirrorSheet() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Хорошоп");
+  const data = sheet.getDataRange().getValues();
+  
+  const rows = data.slice(1);
+
+  const formattedSkus = rows.map(row => ({
+    article: row[0], // Артикул
+    supplier: { value: row[1] || null }, // Постачальник
+    presence: { ua: row[2] }, // Наявність (UA)
+    display_in_showcase: row[4], // Статус показу
+    parent_article: row[5] // Батьківський артикул
+  }));
+
+  return formattedSkus;
+}
+
+ось код і ТЗ Налаштувати оновлення сайту на Хорошоп
+
+Проект: Магазин одягу і взуття. https://whitehall.store/  Планується 100к+ товарів + розміри. Загалом близько 300к товарів. Працює на платформі Хорошоп. Сама платформа має ліміт 250к товарів (разом з розмірами). При його досягненні плануємо переходити на самописне рішення типу Laravel. По можливості зробіть так, щоб потім все можна було легко перенести.
+
+Як ми раніше працювали. 
+Спочатку через Apps Script всередині таблиць. Але там є обмеження в 360 секунд на виконання функції. Тому перейшли пізніше на Google Cloud.
+
+
+Зараз є проблема: Додалося багато рядків у таблицю. 100к+ вже. Таблиці не працюють коректно.
+
+
+
+Задача 1. Збір і обробка таблиць постачальників.
+
+Постачальники передають нам посилання на свої таблиці в Google Sheets. І кожен по-різному розміщує стовпці.
+
+На даний момент ця функція працює все ще в таблицях і вже вперлися в ліміт по виконанню
+
+
+
+
+
+
+
+Таблиці треба всі зʼєднати, відфільтрувати по алфавіту за стовпцем Артикул і зберегти в окремий файл чи таблицю. Для того, щоб коли в якогось постачальника раптово закінчиться товар, ми швидко могли подивитися хто “під ним” ще має в наявності.
+Обробка цієї таблиці. Залишити в ній тільки ті артикули, де найменша ціна товару. В Google Sheets це класно працює через Дані - Очищення Даних - Вилучити копії (по стовпцю Артикул)
+Додати націнку до вхідних цін. Має бути можливість задавати власний відсоток націнки до кожного постачальника
+
+Результат: таблиця з унікальними артикулами. Готова щоб її запушити на сайт для оновлення статусу Наявності та Цін.
+
+
+
+
+
+
+Задача 2. Оновити Наявність на сайті
+Ключ - Артикул
+
+Оновити 2 поля:
+Ціна
+Видимість (так/ні)
+
+Якщо артикулу немає в таблиці - Ні
+Якщо є - Так
+
+
+Оновлювати це все потрібно мінімум раз в день. А краще 2-3 рази.
+
+Частина коду імпорту
+
+
+
+На даний момент ця функція працює в Google Cloud. Ніби все добре. Але вона не отримує повний список, бо в Задача 1 вже вперлися в ліміт
+
+
+
+
+
+———————————————————
+
+Таблиці треба всі зʼєднати, відфільтрувати по алфавіту за стовпцем Артикул і зберегти в окремий файл чи таблицю. Для того, щоб коли в якогось постачальника раптово закінчиться товар, ми швидко могли подивитися хто “під ним” ще має в наявності.
+Обробка цієї таблиці. Залишити в ній тільки ті артикули, де найменша ціна товару. В Google Sheets це класно працює через Дані - Очищення Даних - Вилучити копії (по стовпцю Артикул)
+Додати націнку до вхідних цін. Має бути можливість задавати власний відсоток націнки до кожного постачальника. 
+Додаткові функції
+Націнка. Має бути реалізована наступна логіка. Якщо прибуток на товарі після додавання % націнки є менший ніж 500 грн. Треба поставити націнку 500 грн. Якщо прибуток >= 500 грн, залишаємо як є.
+Ціни мають бути заокруглені до 10 грн в більшу сторону. Наприклад 1897 грн виходить по формулі. Тоді пишемо 1900 грн.
+Має бути можливість задавати власні ціни. Для цього ми використовували таблицю «Ручний склад». Де вписується артикул і потрібна ціна. Юзкейс - в постачальника є товар по закупці 5000 грн. Виставлена в нас націнка 20%. В фіналі на сайті отримуємо 6000 грн. Ми завезли товар на свій склад. Закупка 5500 грн або не важливо навіть яка. Хочемо продавати по 7000 грн.
+
+Важливий момент по вхідних даних.
+Постачальник в рандомний момент можуть змінити:
+- назва таблиці
+- назва аркуша
+- переставити колонки місцями
+Тоді добре якісь логи поставити, щоб потім побачити. І розробляти функцію так щоб по можливості не привʼязувати до цих полів
+
+
+
+Задача 2
+Оновлення товарів
+Беремо Ключ - Артикул
+ по ньому оновлюємо 2 поля:
+Ціна
+Видимість (так/ні)
+Якщо артикулу немає в таблиці - Ні
+Якщо є - Так
+Оновлювати це все потрібно мінімум раз в день. А краще 2-3 рази.
+Має бути можливість вручну запустити оновлення
+
+
+

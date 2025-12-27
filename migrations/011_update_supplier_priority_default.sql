@@ -1,0 +1,2 @@
+ALTER TABLE suppliers
+  ALTER COLUMN priority SET DEFAULT 100;

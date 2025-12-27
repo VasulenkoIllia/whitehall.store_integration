@@ -1,0 +1,9 @@
+node_modules
+admin-ui/node_modules
+data
+exports
+.git
+.idea
+.env
+npm-debug.log
+yarn.lock

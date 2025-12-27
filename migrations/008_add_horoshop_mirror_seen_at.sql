@@ -1,0 +1,2 @@
+ALTER TABLE horoshop_mirror
+ADD COLUMN IF NOT EXISTS seen_at TIMESTAMPTZ;

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Horoshop Admin</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <p class="brand-eyebrow">Horoshop</p>
+          <h1>Admin</h1>
+        </div>
+        <button id="add-supplier" class="primary">+ Додати постачальника</button>
+        <div class="sidebar-section">
+          <p class="section-label">Постачальники</p>
+          <div id="supplier-list" class="supplier-list"></div>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Робоча зона постачальника</p>
+            <h2 id="supplier-title">Оберіть постачальника</h2>
+          </div>
+          <div class="status-card">
+            <div class="status-title">Стан системи</div>
+            <div class="status-row">
+              <span>API</span>
+              <span class="pill" id="api-status">unknown</span>
+            </div>
+            <div class="status-row">
+              <span>Остання дія</span>
+              <span id="last-action">-</span>
+            </div>
+          </div>
+        </header>
+
+        <section class="panel" id="supplier-panel">
+          <div class="panel-header">
+            <h3>Налаштування постачальника</h3>
+            <div class="panel-actions">
+              <button id="toggle-supplier" class="ghost" disabled>Деактивувати</button>
+              <button id="delete-supplier" class="danger" disabled>Видалити</button>
+            </div>
+          </div>
+          <form id="supplier-form" class="form">
+            <input type="hidden" name="id" />
+            <label>
+              Назва
+              <input type="text" name="name" required />
+            </label>
+            <label>
+              Націнка %
+              <input type="number" name="markup" step="0.01" value="0" />
+            </label>
+            <label>
+              Пріоритет
+              <input type="number" name="priority" value="3" />
+            </label>
+            <button type="submit" class="primary">Зберегти</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h3>Джерела даних</h3>
+            <button id="import-supplier" class="ghost" disabled>Імпортувати всі джерела</button>
+          </div>
+          <form id="source-form" class="form">
+            <label>
+              Тип джерела
+              <select name="type" required>
+                <option value="google_sheet">google_sheet</option>
+              </select>
+            </label>
+            <label>
+              Посилання на Google Sheets
+              <input type="text" name="url" required />
+            </label>
+            <label>
+              Назва аркуша (опц.)
+              <input type="text" name="sheet" />
+            </label>
+            <button type="submit" class="primary">Додати джерело</button>
+          </form>
+          <div class="table-wrap">
+            <table id="sources-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Тип</th>
+                  <th>URL</th>
+                  <th>Аркуш</th>
+                  <th>Статус</th>
+                  <th>Дії</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Мапінг колонок</h3>
+          <form id="mapping-form" class="form">
+            <label>
+              Рядок заголовків
+              <input type="number" name="headerRow" />
+            </label>
+            <label>
+              Мапінг (JSON)
+              <textarea name="mapping" rows="6" placeholder='{"article":6,"size":7,"quantity":9,"price":8}'></textarea>
+            </label>
+            <button type="submit" class="primary">Зберегти мапінг</button>
+          </form>
+          <pre class="hint" id="mapping-hint">Немає мапінгу.</pre>
+        </section>
+
+        <section class="panel">
+          <h3>Пайплайн</h3>
+          <div class="actions">
+            <button id="run-finalize">Finalize</button>
+            <button id="run-export">Export</button>
+          </div>
+          <pre class="hint" id="action-result">Дій ще не було.</pre>
+        </section>
+
+        <section class="panel">
+          <h3>Джоби</h3>
+          <div class="table-wrap">
+            <table id="jobs-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Тип</th>
+                  <th>Статус</th>
+                  <th>Старт</th>
+                  <th>Фініш</th>
+                  <th>Логи</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Логи</h3>
+          <pre class="logs" id="logs-output">Оберіть джоб для перегляду логів.</pre>
+        </section>
+      </main>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>
