@@ -115,7 +115,7 @@ router.post('/suppliers', async (req, res, next) => {
     const minProfitEnabled =
       typeof min_profit_enabled === 'boolean' ? min_profit_enabled : true;
     const minProfitAmount = minProfitEnabled
-      ? Math.max(500, Number.isFinite(Number(min_profit_amount)) ? Number(min_profit_amount) : 500)
+      ? Math.max(0, Number.isFinite(Number(min_profit_amount)) ? Number(min_profit_amount) : 0)
       : 0;
     const result = await db.query(
       `INSERT INTO suppliers (name, markup_percent, priority, min_profit_enabled, min_profit_amount)
@@ -168,7 +168,7 @@ router.put('/suppliers/:id', async (req, res, next) => {
           typeof req.body.min_profit_enabled === 'boolean' && req.body.min_profit_enabled === false
             ? 0
             : Number.isFinite(Number(req.body.min_profit_amount))
-              ? Math.max(500, Number(req.body.min_profit_amount))
+              ? Math.max(0, Number(req.body.min_profit_amount))
               : undefined,
         min_profit_enabled: req.body.min_profit_enabled
       },

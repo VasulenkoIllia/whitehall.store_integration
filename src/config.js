@@ -17,6 +17,8 @@ const jobTimeoutMinutes = Number(process.env.JOB_TIMEOUT_MINUTES || 0);
 const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
 const telegramChatId = process.env.TELEGRAM_CHAT_ID || '';
 const telegramAppName = process.env.TELEGRAM_APP_NAME || '';
+const adminLogin = process.env.ADMIN_LOGIN || 'admin';
+const adminPassword = process.env.ADMIN_PASSWORD || 'admin';
 
 module.exports = {
   port,
@@ -35,5 +37,7 @@ module.exports = {
   jobTimeoutMinutes,
   telegramBotToken,
   telegramChatId,
-  telegramAppName
+  telegramAppName,
+  adminLogin,
+  adminPassword
 };

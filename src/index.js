@@ -1,5 +1,5 @@
 const express = require('express');
-const { port } = require('./config');
+const { port, adminLogin, adminPassword } = require('./config');
 const logger = require('./logger');
 const logService = require('./services/logService');
 const healthRouter = require('./routes/health');
@@ -11,6 +11,39 @@ const { startScheduler } = require('./jobs/scheduler');
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
+
+function parseBasicAuth(header) {
+  if (!header || !header.startsWith('Basic ')) {
+    return null;
+  }
+  const encoded = header.slice(6).trim();
+  if (!encoded) {
+    return null;
+  }
+  const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+  const [user, pass] = decoded.split(':');
+  if (!user && !pass) {
+    return null;
+  }
+  return { user, pass };
+}
+
+function requireAuth(req, res, next) {
+  if (req.path.startsWith('/health')) {
+    return next();
+  }
+  if (!adminLogin || !adminPassword) {
+    return next();
+  }
+  const auth = parseBasicAuth(req.headers.authorization);
+  if (auth && auth.user === adminLogin && auth.pass === adminPassword) {
+    return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="Admin"');
+  return res.status(401).send('Unauthorized');
+}
+
+app.use(requireAuth);
 
 app.use('/health', healthRouter);
 app.use('/jobs', jobsRouter);

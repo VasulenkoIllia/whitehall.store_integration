@@ -838,7 +838,7 @@ function App() {
     try {
       const minProfitAmountValue = Number(values.min_profit_amount);
       const minProfitAmount = values.min_profit_enabled
-        ? Math.max(500, Number.isFinite(minProfitAmountValue) ? minProfitAmountValue : 500)
+        ? Math.max(0, Number.isFinite(minProfitAmountValue) ? minProfitAmountValue : 0)
         : 0;
       const updated = await apiFetch(`/suppliers/${selectedSupplier.id}`, {
         method: 'PUT',
@@ -873,7 +873,7 @@ function App() {
     try {
       const minProfitAmountValue = Number(values.min_profit_amount);
       const minProfitAmount = values.min_profit_enabled
-        ? Math.max(500, Number.isFinite(minProfitAmountValue) ? minProfitAmountValue : 500)
+        ? Math.max(0, Number.isFinite(minProfitAmountValue) ? minProfitAmountValue : 0)
         : 0;
       const created = await apiFetch('/suppliers', {
         method: 'POST',
@@ -2518,7 +2518,7 @@ function App() {
               </Form.Item>
               <Form.Item name="min_profit_amount" noStyle>
                 <InputNumber
-                  min={500}
+                  min={0}
                   step={1}
                   style={{ width: 140 }}
                   disabled={minProfitEnabledCreate === false}
@@ -2613,7 +2613,7 @@ function App() {
                               </Form.Item>
                               <Form.Item name="min_profit_amount" noStyle>
                                 <InputNumber
-                                  min={500}
+                                  min={0}
                                   step={1}
                                   style={{ width: 140 }}
                                   disabled={minProfitEnabledEdit === false}
