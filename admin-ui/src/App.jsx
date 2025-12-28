@@ -690,10 +690,15 @@ function App() {
 
   const refreshCronSettings = async () => {
     const data = await apiFetch('/cron-settings');
-    const filtered = data.filter((item) => item.name === 'update_pipeline');
+    const filtered = data.filter(
+      (item) =>
+        item.name === 'update_pipeline' ||
+        item.name === 'horoshop_sync' ||
+        item.name === 'cleanup'
+    );
     const normalized = filtered.map((item) => ({
       ...item,
-      meta: item.meta || { supplier: 'drop' }
+      meta: item.name === 'update_pipeline' ? item.meta || { supplier: 'drop' } : item.meta || {}
     }));
     setCronSettings(normalized);
     const ui = {};
@@ -1337,6 +1342,7 @@ function App() {
   const cronDescription = useMemo(
     () => ({
       update_pipeline: 'Планування оновлення (імпорт → finalize → export → Horoshop)',
+      horoshop_sync: 'Регламентний sync Horoshop (дзеркало)',
       cleanup: 'Очищення історії (10 днів)'
     }),
     []
@@ -2324,20 +2330,22 @@ function App() {
                       />
                     </Col>
                   )}
-                  <Col span={24}>
-                    <Text className="muted">Постачальник для оновлення Horoshop</Text>
-                    <Select
-                      value={item.meta?.supplier || 'drop'}
-                      onChange={(value) => updateCronMeta(item.name, { supplier: value })}
-                      options={[
-                        { label: 'drop', value: 'drop' },
-                        ...horoshopSuppliers
-                          .filter((supplier) => supplier && supplier !== 'drop')
-                          .map((supplier) => ({ label: supplier, value: supplier }))
-                      ]}
-                      style={{ minWidth: 220 }}
-                    />
-                  </Col>
+                  {item.name === 'update_pipeline' && (
+                    <Col span={24}>
+                      <Text className="muted">Постачальник для оновлення Horoshop</Text>
+                      <Select
+                        value={item.meta?.supplier || 'drop'}
+                        onChange={(value) => updateCronMeta(item.name, { supplier: value })}
+                        options={[
+                          { label: 'drop', value: 'drop' },
+                          ...horoshopSuppliers
+                            .filter((supplier) => supplier && supplier !== 'drop')
+                            .map((supplier) => ({ label: supplier, value: supplier }))
+                        ]}
+                        style={{ minWidth: 220 }}
+                      />
+                    </Col>
+                  )}
                 </Row>
               </div>
               <div className="cron-toggle">

@@ -40,6 +40,7 @@ async function ensureCronTable() {
     `INSERT INTO cron_settings (name, cron, is_enabled, meta)
      VALUES
        ('update_pipeline', '0 3 * * *', TRUE, '{"supplier":"drop"}'),
+       ('horoshop_sync', '30 1 * * *', TRUE, '{}'::jsonb),
        ('cleanup', '15 2 * * *', TRUE, '{}'::jsonb)
      ON CONFLICT (name) DO NOTHING`
   );

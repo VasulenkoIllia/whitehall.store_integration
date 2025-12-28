@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const db = require('../db');
 const logger = require('../logger');
-const { runUpdatePipeline, runCleanup } = require('./runners');
+const { runUpdatePipeline, runCleanup, runHoroshopSync } = require('./runners');
 
 const tasks = new Map();
 const running = new Set();
@@ -13,10 +13,16 @@ const defaultSettings = [
     is_enabled: true,
     meta: { supplier: process.env.UPDATE_PIPELINE_SUPPLIER || 'drop' }
   },
+  {
+    name: 'horoshop_sync',
+    cron: process.env.HOROSHOP_SYNC_CRON || '30 1 * * *',
+    is_enabled: true,
+    meta: {}
+  },
   { name: 'cleanup', cron: process.env.CLEANUP_CRON || '15 2 * * *', is_enabled: true }
 ];
 
-const allowedTasks = new Set(['update_pipeline', 'cleanup']);
+const allowedTasks = new Set(['update_pipeline', 'horoshop_sync', 'cleanup']);
 
 async function loadSettings() {
   try {
@@ -41,6 +47,8 @@ async function runTask(setting) {
     if (name === 'update_pipeline') {
       const supplier = setting?.meta?.supplier || 'drop';
       await runUpdatePipeline({ supplier });
+    } else if (name === 'horoshop_sync') {
+      await runHoroshopSync();
     } else if (name === 'cleanup') {
       await runCleanup();
     }
