@@ -30,12 +30,15 @@ services:
     environment:
       DATABASE_URL: postgres://whitehall_store:whitehall_store@db:5432/whitehall_store
       PORT: 3000
+      TZ: Europe/Kyiv
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "127.0.0.1:3007:3000"
     volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
       - ./exports:/app/exports
     command: sh -c "node scripts/migrate.js && node src/index.js"
     restart: unless-stopped
