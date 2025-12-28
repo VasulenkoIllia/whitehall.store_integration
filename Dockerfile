@@ -14,6 +14,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# ✅ add timezone database + set default TZ
+RUN apk add --no-cache tzdata
+ENV TZ=Europe/Kyiv
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY src ./src
