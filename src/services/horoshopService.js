@@ -292,6 +292,14 @@ async function importHoroshopPreview(jobId) {
       try {
         const response = await importCatalog(token, products);
         const issues = extractImportIssues(response);
+        const statusValue = String(issues?.status || '').toUpperCase();
+        if (statusValue === 'HTTP_ERROR' || statusValue === 'ERROR') {
+          const err = new Error(
+            issues?.message || `Horoshop import ${statusValue}`
+          );
+          err.details = { status: statusValue, message: issues?.message || null };
+          throw err;
+        }
         const hasLogIssues =
           issues?.logSummary?.nonZeroCount > 0 ||
           (issues?.status && issues.status !== 'OK');
