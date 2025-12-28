@@ -132,6 +132,30 @@ function parseRetryAfterSeconds(message) {
   return null;
 }
 
+function normalizeIssueList(raw) {
+  if (!raw) {
+    return [];
+  }
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+  if (typeof raw === 'object') {
+    return Object.entries(raw).map(([key, value]) => ({ key, value }));
+  }
+  return [{ value: raw }];
+}
+
+function extractImportIssues(response) {
+  const payload = response?.response ?? response;
+  const errors = normalizeIssueList(
+    payload?.errors || payload?.error || response?.errors || null
+  );
+  const warnings = normalizeIssueList(payload?.warnings || response?.warnings || null);
+  const status = response?.status || payload?.status || null;
+  const message = payload?.message || response?.message || null;
+  return { errors, warnings, status, message };
+}
+
 function normalizeProduct(product) {
   return {
     article: product?.article || '',
@@ -246,7 +270,19 @@ async function importHoroshopPreview(jobId) {
 
     while (true) {
       try {
-        await importCatalog(token, products);
+        const response = await importCatalog(token, products);
+        const issues = extractImportIssues(response);
+        if (jobId && (issues.errors.length || issues.warnings.length || issues.message)) {
+          await logService.log(jobId, 'warning', 'Horoshop import batch response', {
+            batch: batches + 1,
+            status: issues.status,
+            message: issues.message,
+            errorsCount: issues.errors.length,
+            warningsCount: issues.warnings.length,
+            sampleErrors: issues.errors.slice(0, 5),
+            sampleWarnings: issues.warnings.slice(0, 5)
+          });
+        }
         retryAttempts = 0;
         break;
       } catch (err) {
