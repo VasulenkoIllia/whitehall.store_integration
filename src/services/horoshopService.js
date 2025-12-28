@@ -153,7 +153,27 @@ function extractImportIssues(response) {
   const warnings = normalizeIssueList(payload?.warnings || response?.warnings || null);
   const status = response?.status || payload?.status || null;
   const message = payload?.message || response?.message || null;
-  return { errors, warnings, status, message };
+  const logItems = Array.isArray(payload?.log) ? payload.log : [];
+  const infoItems = logItems.flatMap((item) =>
+    Array.isArray(item?.info) ? item.info : []
+  );
+  const nonZeroCount = infoItems.filter((item) => Number(item?.code) !== 0).length;
+  const sampleLog = logItems.slice(0, 5).map((item) => ({
+    article: item?.article || null,
+    info: Array.isArray(item?.info) ? item.info.slice(0, 3) : []
+  }));
+  return {
+    errors,
+    warnings,
+    status,
+    message,
+    logSummary: {
+      logCount: logItems.length,
+      infoCount: infoItems.length,
+      nonZeroCount,
+      sample: sampleLog
+    }
+  };
 }
 
 function normalizeProduct(product) {
@@ -272,15 +292,28 @@ async function importHoroshopPreview(jobId) {
       try {
         const response = await importCatalog(token, products);
         const issues = extractImportIssues(response);
-        if (jobId && (issues.errors.length || issues.warnings.length || issues.message)) {
+        const hasLogIssues =
+          issues?.logSummary?.nonZeroCount > 0 ||
+          (issues?.status && issues.status !== 'OK');
+        if (
+          jobId &&
+          (issues.errors.length ||
+            issues.warnings.length ||
+            issues.message ||
+            hasLogIssues)
+        ) {
           await logService.log(jobId, 'warning', 'Horoshop import batch response', {
             batch: batches + 1,
             status: issues.status,
             message: issues.message,
             errorsCount: issues.errors.length,
             warningsCount: issues.warnings.length,
+            logCount: issues.logSummary?.logCount || 0,
+            infoCount: issues.logSummary?.infoCount || 0,
+            nonZeroCount: issues.logSummary?.nonZeroCount || 0,
             sampleErrors: issues.errors.slice(0, 5),
-            sampleWarnings: issues.warnings.slice(0, 5)
+            sampleWarnings: issues.warnings.slice(0, 5),
+            sampleLog: issues.logSummary?.sample || []
           });
         }
         retryAttempts = 0;
