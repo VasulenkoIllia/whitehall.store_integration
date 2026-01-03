@@ -276,7 +276,7 @@ router.put('/sources/:id', async (req, res, next) => {
 router.delete('/sources/:id', async (req, res, next) => {
   try {
     const result = await db.query(
-      'UPDATE sources SET is_active = FALSE WHERE id = $1 RETURNING *',
+      'DELETE FROM sources WHERE id = $1 RETURNING *',
       [req.params.id]
     );
     res.json(result.rows[0]);
