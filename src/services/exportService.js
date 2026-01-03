@@ -313,23 +313,59 @@ async function exportForHoroshop(jobId, options = {}) {
   const apiBatchSize = 500;
   const mirrorMap = await fetchHoroshopMirrorMap({ supplier: supplierFilter });
 
-  let lastId = 0;
+  let lastSku = '';
   while (true) {
     const result = await db.query(
-      `SELECT pf.id, pf.article, pf.size, pf.quantity, pf.price_base,
-              COALESCE(po.price_final, pf.price_final) AS price_final,
-              pf.extra, sp.name AS supplier_name
-       FROM products_final pf
-       LEFT JOIN suppliers sp ON sp.id = pf.supplier_id
-       LEFT JOIN price_overrides po
-         ON po.article = pf.article
-        AND NULLIF(po.size, '') IS NOT DISTINCT FROM NULLIF(pf.size, '')
-        AND po.is_active = TRUE
-       WHERE pf.job_id = $1
-         AND pf.id > $2
-       ORDER BY pf.id ASC
+      `WITH base AS (
+         SELECT
+           pf.id,
+           pf.article,
+           pf.size,
+           pf.quantity,
+           pf.price_base,
+           COALESCE(po.price_final, pf.price_final) AS price_final,
+           pf.extra,
+           sp.name AS supplier_name,
+           COALESCE(sp.priority, 9999) AS supplier_priority,
+           CASE
+             WHEN pf.size IS NULL OR btrim(pf.size) = '' THEN pf.article
+             WHEN right(lower(pf.article), length(replace(btrim(pf.size), ',', '.'))) =
+                  lower(replace(btrim(pf.size), ',', '.'))
+               THEN pf.article
+             ELSE pf.article || '-' || replace(btrim(pf.size), ',', '.')
+           END AS sku_article
+         FROM products_final pf
+         LEFT JOIN suppliers sp ON sp.id = pf.supplier_id
+         LEFT JOIN price_overrides po
+           ON po.article = pf.article
+          AND NULLIF(po.size, '') IS NOT DISTINCT FROM NULLIF(pf.size, '')
+          AND po.is_active = TRUE
+         WHERE pf.job_id = $1
+       ),
+       ranked AS (
+         SELECT *,
+                ROW_NUMBER() OVER (
+                  PARTITION BY sku_article
+                  ORDER BY supplier_priority ASC, price_final ASC, id ASC
+                ) AS rn
+         FROM base
+       )
+       SELECT
+         id,
+         article,
+         size,
+         quantity,
+         price_base,
+         price_final,
+         extra,
+         supplier_name,
+         sku_article
+       FROM ranked
+       WHERE rn = 1
+         AND sku_article > $2
+       ORDER BY sku_article ASC
        LIMIT $3`,
-      [finalizeJobId, lastId, pageSize]
+      [finalizeJobId, lastSku, pageSize]
     );
 
     if (!result.rows.length) {
@@ -337,15 +373,15 @@ async function exportForHoroshop(jobId, options = {}) {
     }
 
     for (const row of result.rows) {
-      lastId = row.id;
+      lastSku = row.sku_article;
       if (!row.article || row.price_final === null) {
         continue;
       }
       const priceFinal = Number(row.price_final);
-      const sku = buildSku(row.article, row.size);
+      const sku = normalizeKey(row.sku_article);
       const mirrorRow = mirrorMap.get(sku) || mirrorMap.get(normalizeKey(row.article));
       const horoshopArticle = normalizeKey(mirrorRow?.article || sku);
-      presentSkus.add(normalizeKey(sku));
+      presentSkus.add(sku);
       if (mirrorRow?.article) {
         presentSkus.add(normalizeKey(mirrorRow.article));
       }
