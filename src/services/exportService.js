@@ -231,6 +231,16 @@ async function exportForHoroshop(jobId, options = {}) {
   const generateFiles = options.generateFiles === true;
   const supplierFilter = normalizeSupplier(options.supplier) || 'drop';
   const supplierLower = supplierFilter.toLowerCase();
+  const finalizeJobResult = await db.query(
+    `SELECT id FROM jobs
+     WHERE type = 'finalize'
+     ORDER BY id DESC
+     LIMIT 1`
+  );
+  const finalizeJobId = finalizeJobResult.rows[0]?.id || null;
+  if (!finalizeJobId) {
+    throw new Error('No finalize job found');
+  }
   let filePath = null;
   let controlFilePath = null;
   let apiFilePath = null;
@@ -315,10 +325,11 @@ async function exportForHoroshop(jobId, options = {}) {
          ON po.article = pf.article
         AND NULLIF(po.size, '') IS NOT DISTINCT FROM NULLIF(pf.size, '')
         AND po.is_active = TRUE
-       WHERE pf.id > $1
+       WHERE pf.job_id = $1
+         AND pf.id > $2
        ORDER BY pf.id ASC
-       LIMIT $2`,
-      [lastId, pageSize]
+       LIMIT $3`,
+      [finalizeJobId, lastId, pageSize]
     );
 
     if (!result.rows.length) {
@@ -428,7 +439,7 @@ async function exportForHoroshop(jobId, options = {}) {
           itemArticle,
           item.supplier || '',
           'Немає в наявності',
-          true,
+          false,
           item.parent_article || '',
           ''
         ])
@@ -439,7 +450,7 @@ async function exportForHoroshop(jobId, options = {}) {
       article: itemArticle,
       supplier: item.supplier || '',
       presenceUa: 'Немає в наявності',
-      displayInShowcase: true,
+      displayInShowcase: false,
       parentArticle: item.parent_article || '',
       price: ''
     });
@@ -511,7 +522,8 @@ async function exportForHoroshop(jobId, options = {}) {
     apiShowTotal,
     apiHideTotal,
     apiSkipped,
-    supplier: supplierFilter
+    supplier: supplierFilter,
+    finalizeJobId
   });
   return {
     filePath,
@@ -523,7 +535,8 @@ async function exportForHoroshop(jobId, options = {}) {
     apiShowTotal,
     apiHideTotal,
     apiSkipped,
-    supplier: supplierFilter
+    supplier: supplierFilter,
+    finalizeJobId
   };
 }
 
