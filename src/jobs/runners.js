@@ -70,6 +70,12 @@ async function importAllSources(jobId) {
 
   const summary = [];
   for (const source of sourcesResult.rows) {
+    const statusResult = await db.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
+    if (statusResult.rows[0]?.status === 'canceled') {
+      const err = new Error('Job canceled');
+      err.code = 'JOB_CANCELED';
+      throw err;
+    }
     const mappingResult = await db.query(
       `SELECT mapping, mapping_meta, header_row, source_id
        FROM column_mappings
@@ -113,6 +119,9 @@ async function importAllSources(jobId) {
         error: result.error || null
       });
     } catch (err) {
+      if (err.code === 'JOB_CANCELED' || err.message === 'Job canceled') {
+        throw err;
+      }
       await logService.log(jobId, 'error', 'Import source failed', {
         sourceId: source.id,
         sourceName: source.source_name || source.name || null,

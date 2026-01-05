@@ -4,6 +4,19 @@ const { detectMappingFromRow, hasRequiredFields, normalizeHeader } = require('./
 const logService = require('./logService');
 const { getSheetInfo, getSheetRowChunk } = require('./googleSheetsService');
 
+async function ensureJobActive(jobId) {
+  if (!jobId) {
+    return;
+  }
+  const result = await db.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
+  const status = result.rows[0]?.status;
+  if (status === 'canceled') {
+    const err = new Error('Job canceled');
+    err.code = 'JOB_CANCELED';
+    throw err;
+  }
+}
+
 function parseMappingEntry(entry) {
   if (entry && typeof entry === 'object') {
     if (entry.type === 'static') {
@@ -150,18 +163,36 @@ function recordSkip(stats, samples, reason, rowNumber, context = {}) {
   }
 }
 
+function safeJsonStringify(value) {
+  const replacer = (_key, val) => {
+    if (typeof val === 'bigint') {
+      return val.toString();
+    }
+    if (typeof val === 'number' && !Number.isFinite(val)) {
+      return null;
+    }
+    return val;
+  };
+  return JSON.stringify(value, replacer);
+}
+
 function normalizeRowData(value) {
   if (value === undefined || value === null) {
     return null;
   }
   if (typeof value === 'string') {
     try {
-      return JSON.parse(value);
+      JSON.parse(value);
+      return value;
     } catch (err) {
-      return { raw: value };
+      return safeJsonStringify({ raw: value });
     }
   }
-  return value;
+  try {
+    return safeJsonStringify(value);
+  } catch (err) {
+    return safeJsonStringify({ raw: String(value) });
+  }
 }
 
 async function insertRawBatch(rows) {
@@ -169,30 +200,54 @@ async function insertRawBatch(rows) {
     return;
   }
 
-  const values = [];
-  const placeholders = rows.map((row, idx) => {
-    const base = idx * 9;
-    const rowData = normalizeRowData(row.rowData);
-    values.push(
-      row.jobId,
-      row.supplierId,
-      row.sourceId,
-      row.article,
-      row.size,
-      row.quantity,
-      row.price,
-      row.extra,
-      rowData
-    );
-    return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9})`;
-  });
+  const buildValues = (useRowData) => {
+    const values = [];
+    const placeholders = rows.map((row, idx) => {
+      const base = idx * 9;
+      const rowData = useRowData ? normalizeRowData(row.rowData) : null;
+      values.push(
+        row.jobId,
+        row.supplierId,
+        row.sourceId,
+        row.article,
+        row.size,
+        row.quantity,
+        row.price,
+        row.extra,
+        rowData
+      );
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9})`;
+    });
+    return { values, placeholders };
+  };
 
-  await db.query(
-    `INSERT INTO products_raw
-     (job_id, supplier_id, source_id, article, size, quantity, price, extra, row_data)
-     VALUES ${placeholders.join(', ')}`,
-    values
-  );
+  const { values, placeholders } = buildValues(true);
+  try {
+    await db.query(
+      `INSERT INTO products_raw
+       (job_id, supplier_id, source_id, article, size, quantity, price, extra, row_data)
+       VALUES ${placeholders.join(', ')}`,
+      values
+    );
+  } catch (err) {
+    if (String(err.message).includes('invalid input syntax for type json')) {
+      const fallback = buildValues(false);
+      await db.query(
+        `INSERT INTO products_raw
+         (job_id, supplier_id, source_id, article, size, quantity, price, extra, row_data)
+         VALUES ${fallback.placeholders.join(', ')}`,
+        fallback.values
+      );
+      const jobId = rows[0]?.jobId;
+      if (jobId) {
+        await logService.log(jobId, 'warning', 'Row data dropped (invalid JSON)', {
+          sourceId: rows[0]?.sourceId || null
+        });
+      }
+      return;
+    }
+    throw err;
+  }
 }
 
 async function importExcelFile({
@@ -211,6 +266,7 @@ async function importExcelFile({
   const skipSamples = [];
 
   for await (const worksheet of workbook) {
+    await ensureJobActive(jobId);
     for await (const row of worksheet) {
       const values = row.values || [];
 
@@ -328,6 +384,7 @@ async function importGoogleSheetSource({
   mappingOverride,
   mappingMeta
 }) {
+  await ensureJobActive(jobId);
   const logContext = {
     sourceId: source.id,
     sourceName: source.name || source.source_name || null,
@@ -565,6 +622,7 @@ async function importGoogleSheetSource({
   let logLoaded = false;
 
   while (true) {
+    await ensureJobActive(jobId);
     if (rowCount && startRow > rowCount) {
       break;
     }
