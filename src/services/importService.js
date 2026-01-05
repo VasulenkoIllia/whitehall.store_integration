@@ -150,6 +150,20 @@ function recordSkip(stats, samples, reason, rowNumber, context = {}) {
   }
 }
 
+function normalizeRowData(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch (err) {
+      return { raw: value };
+    }
+  }
+  return value;
+}
+
 async function insertRawBatch(rows) {
   if (!rows.length) {
     return;
@@ -158,6 +172,7 @@ async function insertRawBatch(rows) {
   const values = [];
   const placeholders = rows.map((row, idx) => {
     const base = idx * 9;
+    const rowData = normalizeRowData(row.rowData);
     values.push(
       row.jobId,
       row.supplierId,
@@ -167,7 +182,7 @@ async function insertRawBatch(rows) {
       row.quantity,
       row.price,
       row.extra,
-      row.rowData
+      rowData
     );
     return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9})`;
   });
@@ -271,7 +286,7 @@ async function importExcelFile({
         quantity,
         price,
         extra,
-        rowData: JSON.stringify(values)
+        rowData: values
       });
 
       if (batch.length >= 500) {
@@ -637,7 +652,7 @@ async function importGoogleSheetSource({
         quantity,
         price,
         extra,
-        rowData: JSON.stringify(rows[i])
+        rowData: rows[i]
       });
 
       if (batch.length >= 500) {
