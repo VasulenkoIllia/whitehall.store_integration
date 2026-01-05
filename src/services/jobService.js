@@ -1,9 +1,31 @@
 const db = require('../db');
 
+function normalizeJsonPayload(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (value instanceof Error) {
+    return { message: value.message, stack: value.stack || null };
+  }
+  if (typeof value === 'string') {
+    return { message: value };
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return { value };
+  }
+  try {
+    JSON.stringify(value);
+    return value;
+  } catch (err) {
+    return { message: String(value) };
+  }
+}
+
 async function createJob(type, meta) {
+  const payload = normalizeJsonPayload(meta);
   const result = await db.query(
     'INSERT INTO jobs (type, status, meta) VALUES ($1, $2, $3) RETURNING *',
-    [type, 'queued', meta || null]
+    [type, 'queued', payload]
   );
   return result.rows[0];
 }
