@@ -10,6 +10,9 @@ function normalizeJsonPayload(value) {
   if (typeof value === 'string') {
     return { message: value };
   }
+  if (Array.isArray(value)) {
+    return { items: value };
+  }
   if (typeof value === 'number' || typeof value === 'boolean') {
     return { value };
   }
