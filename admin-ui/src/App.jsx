@@ -364,6 +364,9 @@ function App() {
   const [selectedSupplierIds, setSelectedSupplierIds] = useState([]);
   const [bulkMarkupOpen, setBulkMarkupOpen] = useState(false);
   const [bulkMarkupValue, setBulkMarkupValue] = useState(null);
+  const [bulkMinProfitOpen, setBulkMinProfitOpen] = useState(false);
+  const [bulkMinProfitMode, setBulkMinProfitMode] = useState('keep');
+  const [bulkMinProfitAmount, setBulkMinProfitAmount] = useState(null);
   const [sources, setSources] = useState([]);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [sourceEditing, setSourceEditing] = useState(null);
@@ -788,6 +791,12 @@ function App() {
     setBulkMarkupOpen(true);
   };
 
+  const openBulkMinProfit = () => {
+    setBulkMinProfitMode('keep');
+    setBulkMinProfitAmount(null);
+    setBulkMinProfitOpen(true);
+  };
+
   const applyBulkMarkup = async () => {
     if (!selectedSupplierIds.length) {
       message.error('Оберіть постачальників');
@@ -810,6 +819,48 @@ function App() {
       setSelectedSupplierIds([]);
       await refreshSuppliers();
       message.success('Націнку оновлено');
+    } catch (err) {
+      showError(err);
+    }
+  };
+
+  const applyBulkMinProfit = async () => {
+    if (!selectedSupplierIds.length) {
+      message.error('Оберіть постачальників');
+      return;
+    }
+    const hasAmount = bulkMinProfitAmount !== null && typeof bulkMinProfitAmount !== 'undefined';
+    const isEnable = bulkMinProfitMode === 'enable';
+    const isDisable = bulkMinProfitMode === 'disable';
+
+    if (!isEnable && !isDisable && !hasAmount) {
+      message.error('Вкажіть мінімальну націнку або оберіть стан');
+      return;
+    }
+    if (isEnable && !hasAmount) {
+      message.error('Вкажіть суму мінімальної націнки');
+      return;
+    }
+
+    const payload = { supplier_ids: selectedSupplierIds };
+    if (isEnable || isDisable) {
+      payload.min_profit_enabled = isEnable;
+    }
+    if (hasAmount && !isDisable) {
+      payload.min_profit_amount = bulkMinProfitAmount;
+    }
+
+    try {
+      await apiFetch('/suppliers/bulk', {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      setBulkMinProfitOpen(false);
+      setBulkMinProfitMode('keep');
+      setBulkMinProfitAmount(null);
+      setSelectedSupplierIds([]);
+      await refreshSuppliers();
+      message.success('Мінімальну націнку оновлено');
     } catch (err) {
       showError(err);
     }
@@ -1904,6 +1955,9 @@ function App() {
           <Button onClick={openBulkMarkup} disabled={!selectedSupplierIds.length}>
             Масова націнка
           </Button>
+          <Button onClick={openBulkMinProfit} disabled={!selectedSupplierIds.length}>
+            Масова мін. націнка
+          </Button>
           {selectedSupplierIds.length ? (
             <Tag>Вибрано: {selectedSupplierIds.length}</Tag>
           ) : null}
@@ -2550,6 +2604,37 @@ function App() {
             onChange={(value) => setBulkMarkupValue(value)}
             placeholder="Націнка %"
           />
+        </Space>
+      </Modal>
+
+      <Modal
+        title="Масова мінімальна націнка"
+        open={bulkMinProfitOpen}
+        centered
+        onCancel={() => setBulkMinProfitOpen(false)}
+        onOk={applyBulkMinProfit}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Text className="muted">Обрано постачальників: {selectedSupplierIds.length}</Text>
+          <Text strong>Стан</Text>
+          <Radio.Group
+            value={bulkMinProfitMode}
+            onChange={(event) => setBulkMinProfitMode(event.target.value)}
+          >
+            <Radio value="keep">Не змінювати</Radio>
+            <Radio value="enable">Увімкнути</Radio>
+            <Radio value="disable">Вимкнути</Radio>
+          </Radio.Group>
+          <InputNumber
+            min={0}
+            step={1}
+            style={{ width: '100%' }}
+            value={bulkMinProfitAmount}
+            onChange={(value) => setBulkMinProfitAmount(value)}
+            placeholder="Сума, грн"
+            disabled={bulkMinProfitMode === 'disable'}
+          />
+          <Text className="muted">Сума застосовується, коли мін. націнка увімкнена.</Text>
         </Space>
       </Modal>
 

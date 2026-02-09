@@ -133,21 +133,58 @@ router.post('/suppliers', async (req, res, next) => {
 
 router.put('/suppliers/bulk', async (req, res, next) => {
   try {
-    const { supplier_ids, markup_percent } = req.body;
+    const { supplier_ids, markup_percent, min_profit_enabled, min_profit_amount } = req.body;
     if (!Array.isArray(supplier_ids) || !supplier_ids.length) {
       return res.status(400).json({ error: 'supplier_ids are required' });
-    }
-    if (typeof markup_percent === 'undefined' || markup_percent === null) {
-      return res.status(400).json({ error: 'markup_percent is required' });
     }
     const ids = supplier_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id));
     if (!ids.length) {
       return res.status(400).json({ error: 'supplier_ids are invalid' });
     }
 
+    const updates = {};
+    const values = [];
+
+    const hasMarkup = Object.prototype.hasOwnProperty.call(req.body, 'markup_percent');
+    const hasMinProfitEnabled = Object.prototype.hasOwnProperty.call(req.body, 'min_profit_enabled');
+    const hasMinProfitAmount = Object.prototype.hasOwnProperty.call(req.body, 'min_profit_amount');
+
+    if (hasMarkup) {
+      if (typeof markup_percent === 'undefined' || markup_percent === null) {
+        return res.status(400).json({ error: 'markup_percent is required' });
+      }
+      updates.markup_percent = markup_percent;
+    }
+
+    if (hasMinProfitEnabled && typeof min_profit_enabled !== 'boolean') {
+      return res.status(400).json({ error: 'min_profit_enabled is invalid' });
+    }
+
+    if (typeof min_profit_enabled === 'boolean' && min_profit_enabled === false) {
+      updates.min_profit_enabled = false;
+      updates.min_profit_amount = 0;
+    } else {
+      if (typeof min_profit_enabled === 'boolean') {
+        updates.min_profit_enabled = true;
+      }
+      if (hasMinProfitAmount) {
+        const amountValue = Number(min_profit_amount);
+        if (!Number.isFinite(amountValue)) {
+          return res.status(400).json({ error: 'min_profit_amount is invalid' });
+        }
+        updates.min_profit_amount = Math.max(0, amountValue);
+      }
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ error: 'no fields to update' });
+    }
+
+    const updateClauses = buildUpdateClause(updates, values);
+    values.push(ids);
     const result = await db.query(
-      'UPDATE suppliers SET markup_percent = $1 WHERE id = ANY($2::bigint[]) RETURNING id',
-      [markup_percent, ids]
+      `UPDATE suppliers SET ${updateClauses.join(', ')} WHERE id = ANY($${values.length}::bigint[]) RETURNING id`,
+      values
     );
     res.json({ updated: result.rowCount || 0 });
   } catch (err) {
