@@ -10,6 +10,10 @@ const {
   horoshopStoreRaw
 } = require('../config');
 
+const REQUEST_TIMEOUT_MS = 90 * 1000;
+const TRANSIENT_RETRY_BASE_MS = 15 * 1000;
+const TRANSIENT_RETRY_CAP_MS = 10 * 60 * 1000;
+
 function buildApiBase() {
   if (!horoshopDomain) {
     throw new Error('Horoshop domain is not set');
@@ -20,12 +24,69 @@ function buildApiBase() {
   return `https://${horoshopDomain.replace(/\/+$/, '')}`;
 }
 
+function isRateLimitError(message) {
+  return /requests limit has been exceeded/i.test(String(message || ''));
+}
+
+function isAuthError(message) {
+  return /incorrect auth data/i.test(String(message || ''));
+}
+
+function isTransientError(message) {
+  return /(sqlstate\[hy000\]\s*\[2002\].*connection timed out|connection timed out|timed out|etimedout|econnreset|socket hang up|gateway timeout|bad gateway|service unavailable|temporary unavailable)/i.test(
+    String(message || '')
+  );
+}
+
+function getRetryPolicy(message, retryAttempts) {
+  const retryAfterSeconds = parseRetryAfterSeconds(message);
+  if (Number.isFinite(retryAfterSeconds)) {
+    return {
+      reason: 'retry_after',
+      waitMs: retryAfterSeconds * 1000,
+      retryAfterSeconds
+    };
+  }
+
+  if (isRateLimitError(message)) {
+    return {
+      reason: 'rate_limit',
+      waitMs: Math.min(15 * 60 * 1000, (retryAttempts + 1) * 60 * 1000),
+      retryAfterSeconds: null
+    };
+  }
+
+  if (isTransientError(message)) {
+    const factor = Math.max(0, Math.min(retryAttempts, 5));
+    return {
+      reason: 'transient',
+      waitMs: Math.min(TRANSIENT_RETRY_CAP_MS, TRANSIENT_RETRY_BASE_MS * 2 ** factor),
+      retryAfterSeconds: null
+    };
+  }
+
+  return null;
+}
+
 async function postJson(url, payload) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   let data = null;
   try {
     data = await res.json();
@@ -328,19 +389,17 @@ async function importHoroshopPreview(jobId) {
         break;
       } catch (err) {
         const message = err?.message || '';
-        const retryAfterSeconds = parseRetryAfterSeconds(message);
-        let waitMs = null;
-        if (Number.isFinite(retryAfterSeconds)) {
-          waitMs = retryAfterSeconds * 1000;
-        } else if (/requests limit has been exceeded/i.test(message)) {
-          waitMs = Math.min(15 * 60 * 1000, (retryAttempts + 1) * 60 * 1000);
-        }
+        const retryPolicy = getRetryPolicy(message, retryAttempts);
+        const waitMs = retryPolicy?.waitMs ?? null;
+        const retryAfterSeconds = retryPolicy?.retryAfterSeconds ?? null;
 
         if (waitMs !== null && retryAttempts < maxAttempts) {
           retryAttempts += 1;
           if (jobId) {
-            await logService.log(jobId, 'warning', 'Horoshop import rate limited', {
+            await logService.log(jobId, 'warning', 'Horoshop import retry scheduled', {
               attempt: retryAttempts,
+              reason: retryPolicy?.reason || 'unknown',
+              message,
               waitMs,
               retryAfterSeconds,
               batch: batches + 1
@@ -356,7 +415,7 @@ async function importHoroshopPreview(jobId) {
           continue;
         }
 
-        if (/incorrect auth data/i.test(message) && retryAttempts < maxAttempts) {
+        if (isAuthError(message) && retryAttempts < maxAttempts) {
           retryAttempts += 1;
           token = await getToken();
           if (jobId) {
@@ -403,44 +462,50 @@ async function syncHoroshopCatalog(jobId) {
 
     let offset = 0;
     let total = 0;
-    const limit = horoshopExportLimit || 500;
-    if (!Number.isFinite(limit) || limit <= 0) {
+    const baseLimit = horoshopExportLimit || 500;
+    if (!Number.isFinite(baseLimit) || baseLimit <= 0) {
       throw new Error('Horoshop export limit must be greater than 0');
     }
+    const minLimit = Math.max(50, Math.min(baseLimit, 100));
+    let requestLimit = baseLimit;
     let batchIndex = 0;
     let retryAttempts = 0;
 
     while (true) {
       let products;
       try {
-        products = await exportCatalog(token, offset * limit, limit);
+        products = await exportCatalog(token, offset, requestLimit);
         retryAttempts = 0;
       } catch (err) {
         const message = err?.message || '';
-        const retryAfterSeconds = parseRetryAfterSeconds(message);
-        let waitMs = null;
-        if (Number.isFinite(retryAfterSeconds)) {
-          waitMs = retryAfterSeconds * 1000;
-        } else if (/requests limit has been exceeded/i.test(message)) {
-          waitMs = Math.min(15 * 60 * 1000, (retryAttempts + 1) * 60 * 1000);
+        const retryPolicy = getRetryPolicy(message, retryAttempts);
+        const waitMs = retryPolicy?.waitMs ?? null;
+        const retryAfterSeconds = retryPolicy?.retryAfterSeconds ?? null;
+        let downgradedLimit = null;
+        if (retryPolicy?.reason === 'transient' && requestLimit > minLimit) {
+          downgradedLimit = Math.max(minLimit, Math.floor(requestLimit / 2));
+          requestLimit = downgradedLimit;
         }
 
         if (waitMs !== null && retryAttempts < maxAttempts) {
           retryAttempts += 1;
           if (jobId) {
-            await logService.log(jobId, 'warning', 'Horoshop sync rate limited', {
+            await logService.log(jobId, 'warning', 'Horoshop sync retry scheduled', {
               attempt: retryAttempts,
+              reason: retryPolicy?.reason || 'unknown',
+              message,
               waitMs,
               retryAfterSeconds,
-              offset: offset * limit,
-              limit
+              offset,
+              limit: requestLimit,
+              downgradedLimit
             });
           }
           await sleep(waitMs);
           token = await getToken();
           if (jobId) {
             await logService.log(jobId, 'info', 'Horoshop token refreshed after wait', {
-              offset: offset * limit
+              offset
             });
           }
           continue;
@@ -450,8 +515,8 @@ async function syncHoroshopCatalog(jobId) {
       if (!products.length) {
         if (batchIndex === 0 && jobId) {
           await logService.log(jobId, 'warning', 'Horoshop export returned empty batch', {
-            offset: offset * limit,
-            limit
+            offset,
+            limit: requestLimit
           });
         }
         break;
@@ -467,13 +532,13 @@ async function syncHoroshopCatalog(jobId) {
           total
         });
       }
-      if (products.length < limit) {
+      if (products.length < requestLimit) {
         break;
       }
       if (delayMs > 0) {
         await sleep(delayMs);
       }
-      offset += 1;
+      offset += products.length;
     }
 
     const cleanupResult = await client.query(
