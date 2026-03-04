@@ -276,6 +276,18 @@ const FRIENDLY_ERROR_MAP = [
     message: 'Джерело з таким посиланням вже існує.'
   },
   {
+    match: /markup rule set name already exists/i,
+    message: 'Правило з такою назвою вже існує.'
+  },
+  {
+    match: /conditions are required/i,
+    message: 'Додайте хоча б одну умову в правилі.'
+  },
+  {
+    match: /active conditions overlap/i,
+    message: 'Активні умови перетинаються за діапазонами. Виправте межі.'
+  },
+  {
     match: /No import_all job found/i,
     message: 'Спочатку запустіть “Імпорт усіх”.'
   },
@@ -362,11 +374,11 @@ function App() {
   const [supplierCreateOpen, setSupplierCreateOpen] = useState(false);
   const [supplierSettingsOpen, setSupplierSettingsOpen] = useState(false);
   const [selectedSupplierIds, setSelectedSupplierIds] = useState([]);
-  const [bulkMarkupOpen, setBulkMarkupOpen] = useState(false);
-  const [bulkMarkupValue, setBulkMarkupValue] = useState(null);
-  const [bulkMinProfitOpen, setBulkMinProfitOpen] = useState(false);
-  const [bulkMinProfitMode, setBulkMinProfitMode] = useState('keep');
-  const [bulkMinProfitAmount, setBulkMinProfitAmount] = useState(null);
+  const [markupRuleSets, setMarkupRuleSets] = useState([]);
+  const [globalMarkupRuleSetId, setGlobalMarkupRuleSetId] = useState(null);
+  const [markupRuleModalOpen, setMarkupRuleModalOpen] = useState(false);
+  const [markupRuleApplyOpen, setMarkupRuleApplyOpen] = useState(false);
+  const [editingMarkupRuleSetId, setEditingMarkupRuleSetId] = useState(null);
   const [sources, setSources] = useState([]);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [sourceEditing, setSourceEditing] = useState(null);
@@ -420,10 +432,14 @@ function App() {
 
   const [supplierForm] = Form.useForm();
   const [supplierCreateForm] = Form.useForm();
+  const [markupRuleForm] = Form.useForm();
+  const [markupRuleApplyForm] = Form.useForm();
   const [sourceForm] = Form.useForm();
   const [priceOverrideForm] = Form.useForm();
   const minProfitEnabledCreate = Form.useWatch('min_profit_enabled', supplierCreateForm);
   const minProfitEnabledEdit = Form.useWatch('min_profit_enabled', supplierForm);
+  const applyScope = Form.useWatch('scope', markupRuleApplyForm);
+  const applySupplierMode = Form.useWatch('supplier_mode', markupRuleApplyForm);
 
   const [priceOverrideModalOpen, setPriceOverrideModalOpen] = useState(false);
   const [priceOverrideRow, setPriceOverrideRow] = useState(null);
@@ -531,6 +547,184 @@ function App() {
   const refreshSuppliers = async () => {
     const data = await apiFetch('/suppliers');
     setSuppliers(data);
+  };
+
+  const refreshMarkupRuleSets = async () => {
+    const data = await apiFetch('/markup-rule-sets');
+    const ruleSets = Array.isArray(data?.rule_sets) ? data.rule_sets : [];
+    const globalRuleSetId = Number.isFinite(Number(data?.global_rule_set_id))
+      ? Number(data.global_rule_set_id)
+      : null;
+    setMarkupRuleSets(ruleSets);
+    setGlobalMarkupRuleSetId(globalRuleSetId);
+    return { ruleSets, globalRuleSetId };
+  };
+
+  const applyMarkupRuleSetToForm = (ruleSet) => {
+    if (!ruleSet) {
+      markupRuleForm.setFieldsValue({
+        name: '',
+        description: '',
+        is_active: true,
+        conditions: [
+          {
+            priority: 10,
+            price_from: 0,
+            price_to: null,
+            action_type: 'percent',
+            action_value: 0,
+            is_active: true
+          }
+        ]
+      });
+      return;
+    }
+
+    markupRuleForm.setFieldsValue({
+      name: ruleSet.name || '',
+      description: ruleSet.description || '',
+      is_active: ruleSet.is_active ?? true,
+      conditions: (ruleSet.conditions || []).map((condition, idx) => ({
+        priority: Number.isFinite(Number(condition.priority)) ? Number(condition.priority) : (idx + 1) * 10,
+        price_from: Number.isFinite(Number(condition.price_from)) ? Number(condition.price_from) : 0,
+        price_to:
+          condition.price_to === null || typeof condition.price_to === 'undefined'
+            ? null
+            : Number(condition.price_to),
+        action_type: condition.action_type || 'percent',
+        action_value: Number.isFinite(Number(condition.action_value))
+          ? Number(condition.action_value)
+          : 0,
+        is_active: condition.is_active ?? true
+      }))
+    });
+  };
+
+  const startMarkupRuleCreate = () => {
+    setEditingMarkupRuleSetId(null);
+    applyMarkupRuleSetToForm(null);
+  };
+
+  const selectMarkupRuleSetForEdit = (ruleSetId) => {
+    const selected = markupRuleSets.find((item) => item.id === Number(ruleSetId)) || null;
+    setEditingMarkupRuleSetId(selected ? selected.id : null);
+    applyMarkupRuleSetToForm(selected);
+  };
+
+  const openMarkupRuleModal = async () => {
+    try {
+      const { ruleSets, globalRuleSetId } = await refreshMarkupRuleSets();
+      const initialRuleSet =
+        ruleSets.find((item) => item.id === globalRuleSetId) || ruleSets[0] || null;
+      if (initialRuleSet) {
+        setEditingMarkupRuleSetId(initialRuleSet.id);
+        applyMarkupRuleSetToForm(initialRuleSet);
+      } else {
+        startMarkupRuleCreate();
+      }
+      setMarkupRuleModalOpen(true);
+    } catch (err) {
+      showError(err);
+    }
+  };
+
+  const saveMarkupRuleSet = async () => {
+    try {
+      const values = await markupRuleForm.validateFields();
+      const conditions = Array.isArray(values.conditions) ? values.conditions : [];
+      if (!conditions.length) {
+        message.error('Додайте хоча б одну умову');
+        return;
+      }
+
+      const payload = {
+        name: values.name,
+        description: values.description || null,
+        is_active: values.is_active ?? true,
+        conditions: conditions.map((condition, idx) => ({
+          priority: Number.isFinite(Number(condition.priority)) ? Number(condition.priority) : (idx + 1) * 10,
+          price_from: Number(condition.price_from),
+          price_to:
+            condition.price_to === null ||
+            condition.price_to === '' ||
+            typeof condition.price_to === 'undefined'
+              ? null
+              : Number(condition.price_to),
+          action_type: condition.action_type,
+          action_value: Number(condition.action_value),
+          is_active: condition.is_active ?? true
+        }))
+      };
+
+      if (editingMarkupRuleSetId) {
+        await apiFetch(`/markup-rule-sets/${editingMarkupRuleSetId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+      } else {
+        const created = await apiFetch('/markup-rule-sets', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        if (created?.rule_set?.id) {
+          setEditingMarkupRuleSetId(Number(created.rule_set.id));
+        }
+      }
+
+      await refreshMarkupRuleSets();
+      message.success('Правило націнки збережено');
+    } catch (err) {
+      showError(err);
+    }
+  };
+
+  const openMarkupRuleApply = async () => {
+    try {
+      const { ruleSets, globalRuleSetId } = await refreshMarkupRuleSets();
+      if (!ruleSets.length) {
+        message.error('Створіть хоча б одне правило націнки');
+        return;
+      }
+      const firstRuleSetId = globalRuleSetId || ruleSets[0].id;
+      markupRuleApplyForm.setFieldsValue({
+        rule_set_id: firstRuleSetId,
+        scope: 'suppliers',
+        supplier_mode: 'custom',
+        supplier_ids: selectedSupplierIds
+      });
+      setMarkupRuleApplyOpen(true);
+    } catch (err) {
+      showError(err);
+    }
+  };
+
+  const applyMarkupRuleSet = async () => {
+    try {
+      const values = await markupRuleApplyForm.validateFields();
+      const payload = {
+        scope: values.scope
+      };
+      if (values.rule_set_id !== null && typeof values.rule_set_id !== 'undefined') {
+        payload.rule_set_id = values.rule_set_id;
+      }
+      if (values.scope !== 'global') {
+        payload.supplier_mode = values.supplier_mode || 'custom';
+      }
+      if (values.scope === 'suppliers') {
+        payload.supplier_ids = values.supplier_ids || [];
+      }
+
+      await apiFetch('/markup-rule-sets/apply', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      setMarkupRuleApplyOpen(false);
+      await Promise.all([refreshSuppliers(), refreshMarkupRuleSets()]);
+      message.success('Правило націнки застосовано');
+    } catch (err) {
+      showError(err);
+    }
   };
 
   const applyMappingData = (mappingData, sourceId, sourceList) => {
@@ -731,6 +925,7 @@ function App() {
     refreshHoroshopSuppliers().catch((err) => showError(err));
     refreshComparePreview().catch((err) => showError(err));
     refreshCronSettings().catch((err) => showError(err));
+    refreshMarkupRuleSets().catch((err) => showError(err));
   }, []);
 
   useEffect(() => {
@@ -784,86 +979,6 @@ function App() {
       min_profit_amount: 500
     });
     setSupplierCreateOpen(true);
-  };
-
-  const openBulkMarkup = () => {
-    setBulkMarkupValue(null);
-    setBulkMarkupOpen(true);
-  };
-
-  const openBulkMinProfit = () => {
-    setBulkMinProfitMode('keep');
-    setBulkMinProfitAmount(null);
-    setBulkMinProfitOpen(true);
-  };
-
-  const applyBulkMarkup = async () => {
-    if (!selectedSupplierIds.length) {
-      message.error('Оберіть постачальників');
-      return;
-    }
-    if (bulkMarkupValue === null || typeof bulkMarkupValue === 'undefined') {
-      message.error('Вкажіть націнку');
-      return;
-    }
-    try {
-      await apiFetch('/suppliers/bulk', {
-        method: 'PUT',
-        body: JSON.stringify({
-          supplier_ids: selectedSupplierIds,
-          markup_percent: bulkMarkupValue
-        })
-      });
-      setBulkMarkupOpen(false);
-      setBulkMarkupValue(null);
-      setSelectedSupplierIds([]);
-      await refreshSuppliers();
-      message.success('Націнку оновлено');
-    } catch (err) {
-      showError(err);
-    }
-  };
-
-  const applyBulkMinProfit = async () => {
-    if (!selectedSupplierIds.length) {
-      message.error('Оберіть постачальників');
-      return;
-    }
-    const hasAmount = bulkMinProfitAmount !== null && typeof bulkMinProfitAmount !== 'undefined';
-    const isEnable = bulkMinProfitMode === 'enable';
-    const isDisable = bulkMinProfitMode === 'disable';
-
-    if (!isEnable && !isDisable && !hasAmount) {
-      message.error('Вкажіть мінімальну націнку або оберіть стан');
-      return;
-    }
-    if (isEnable && !hasAmount) {
-      message.error('Вкажіть суму мінімальної націнки');
-      return;
-    }
-
-    const payload = { supplier_ids: selectedSupplierIds };
-    if (isEnable || isDisable) {
-      payload.min_profit_enabled = isEnable;
-    }
-    if (hasAmount && !isDisable) {
-      payload.min_profit_amount = bulkMinProfitAmount;
-    }
-
-    try {
-      await apiFetch('/suppliers/bulk', {
-        method: 'PUT',
-        body: JSON.stringify(payload)
-      });
-      setBulkMinProfitOpen(false);
-      setBulkMinProfitMode('keep');
-      setBulkMinProfitAmount(null);
-      setSelectedSupplierIds([]);
-      await refreshSuppliers();
-      message.success('Мінімальну націнку оновлено');
-    } catch (err) {
-      showError(err);
-    }
   };
 
   const openSupplierSettings = async (supplier) => {
@@ -1400,9 +1515,42 @@ function App() {
   );
 
   const supplierColumns = useMemo(() => {
+    const pricingModeLabels = {
+      legacy: 'Legacy',
+      global: 'Global',
+      custom: 'Custom'
+    };
     const base = [
       { title: 'ID', dataIndex: 'id', key: 'id', width: 60 },
       { title: 'Назва', dataIndex: 'name', key: 'name' },
+      {
+        title: 'Режим',
+        dataIndex: 'pricing_mode',
+        key: 'pricing_mode',
+        width: 120,
+        render: (value) => {
+          const mode = String(value || 'legacy').toLowerCase();
+          if (mode === 'custom') {
+            return <Tag color="green">{pricingModeLabels.custom}</Tag>;
+          }
+          if (mode === 'global') {
+            return <Tag color="blue">{pricingModeLabels.global}</Tag>;
+          }
+          return <Tag>{pricingModeLabels.legacy}</Tag>;
+        }
+      },
+      {
+        title: 'Правило',
+        dataIndex: 'effective_rule_name',
+        key: 'effective_rule_name',
+        width: 240,
+        render: (value, record) => {
+          if (record?.pricing_mode === 'legacy') {
+            return '-';
+          }
+          return value || '-';
+        }
+      },
       {
         title: 'Націнка %',
         dataIndex: 'markup_percent',
@@ -1952,11 +2100,11 @@ function App() {
           <Button type="primary" onClick={openSupplierCreate}>
             Додати постачальника
           </Button>
-          <Button onClick={openBulkMarkup} disabled={!selectedSupplierIds.length}>
-            Масова націнка
+          <Button onClick={openMarkupRuleModal}>
+            Правила націнки
           </Button>
-          <Button onClick={openBulkMinProfit} disabled={!selectedSupplierIds.length}>
-            Масова мін. націнка
+          <Button onClick={openMarkupRuleApply}>
+            Встановити правило
           </Button>
           {selectedSupplierIds.length ? (
             <Tag>Вибрано: {selectedSupplierIds.length}</Tag>
@@ -2588,54 +2736,221 @@ function App() {
       </Modal>
 
       <Modal
-        title="Масова націнка"
-        open={bulkMarkupOpen}
+        title="Правила націнки"
+        open={markupRuleModalOpen}
         centered
-        onCancel={() => setBulkMarkupOpen(false)}
-        onOk={applyBulkMarkup}
+        width="min(96vw, 980px)"
+        onCancel={() => setMarkupRuleModalOpen(false)}
+        onOk={saveMarkupRuleSet}
       >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Text className="muted">Обрано постачальників: {selectedSupplierIds.length}</Text>
-          <InputNumber
-            min={0}
-            step={0.01}
-            style={{ width: '100%' }}
-            value={bulkMarkupValue}
-            onChange={(value) => setBulkMarkupValue(value)}
-            placeholder="Націнка %"
-          />
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Space wrap>
+            <Select
+              value={editingMarkupRuleSetId || undefined}
+              onChange={selectMarkupRuleSetForEdit}
+              style={{ minWidth: 340 }}
+              placeholder="Оберіть правило для редагування"
+              allowClear
+              options={markupRuleSets.map((ruleSet) => ({
+                label:
+                  ruleSet.id === globalMarkupRuleSetId
+                    ? `${ruleSet.name} (global)`
+                    : ruleSet.name,
+                value: ruleSet.id
+              }))}
+            />
+            <Button onClick={startMarkupRuleCreate}>Нове правило</Button>
+          </Space>
+
+          <Form form={markupRuleForm} layout="vertical">
+            <Row gutter={[12, 12]}>
+              <Col xs={24} md={12}>
+                <Form.Item label="Назва" name="name" rules={[{ required: true }]}>
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="Активне" name="is_active" valuePropName="checked">
+                  <Switch />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item label="Опис" name="description">
+              <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} />
+            </Form.Item>
+            <Text className="muted">Діапазон: “від” включно, “до” невключно.</Text>
+            <Form.List name="conditions">
+              {(fields, { add, remove }) => (
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  {fields.map((field, index) => (
+                    <Card
+                      key={field.key}
+                      size="small"
+                      title={`Умова #${index + 1}`}
+                      extra={
+                        <Button danger size="small" onClick={() => remove(field.name)}>
+                          Видалити
+                        </Button>
+                      }
+                    >
+                      <Row gutter={[12, 12]}>
+                        <Col xs={24} md={6}>
+                          <Form.Item
+                            label="Від"
+                            name={[field.name, 'price_from']}
+                            rules={[{ required: true, message: 'Вкажіть значення' }]}
+                          >
+                            <InputNumber min={0} step={1} style={{ width: '100%' }} />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={6}>
+                          <Form.Item label="До" name={[field.name, 'price_to']}>
+                            <InputNumber min={0} step={1} style={{ width: '100%' }} />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={6}>
+                          <Form.Item
+                            label="Тип"
+                            name={[field.name, 'action_type']}
+                            rules={[{ required: true, message: 'Оберіть тип' }]}
+                          >
+                            <Select
+                              options={[
+                                { label: '+ грн', value: 'fixed_add' },
+                                { label: '%', value: 'percent' }
+                              ]}
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={6}>
+                          <Form.Item
+                            label="Значення"
+                            name={[field.name, 'action_value']}
+                            rules={[{ required: true, message: 'Вкажіть значення' }]}
+                          >
+                            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={6}>
+                          <Form.Item label="Пріоритет" name={[field.name, 'priority']}>
+                            <InputNumber min={1} step={1} style={{ width: '100%' }} />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={6}>
+                          <Form.Item
+                            label="Активна умова"
+                            name={[field.name, 'is_active']}
+                            valuePropName="checked"
+                          >
+                            <Switch />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </Card>
+                  ))}
+                  <Button
+                    onClick={() =>
+                      add({
+                        priority: (fields.length + 1) * 10,
+                        price_from: 0,
+                        price_to: null,
+                        action_type: 'percent',
+                        action_value: 0,
+                        is_active: true
+                      })
+                    }
+                  >
+                    Додати умову
+                  </Button>
+                </Space>
+              )}
+            </Form.List>
+          </Form>
         </Space>
       </Modal>
 
       <Modal
-        title="Масова мінімальна націнка"
-        open={bulkMinProfitOpen}
+        title="Встановити правило"
+        open={markupRuleApplyOpen}
         centered
-        onCancel={() => setBulkMinProfitOpen(false)}
-        onOk={applyBulkMinProfit}
+        onCancel={() => setMarkupRuleApplyOpen(false)}
+        onOk={applyMarkupRuleSet}
       >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Text className="muted">Обрано постачальників: {selectedSupplierIds.length}</Text>
-          <Text strong>Стан</Text>
-          <Radio.Group
-            value={bulkMinProfitMode}
-            onChange={(event) => setBulkMinProfitMode(event.target.value)}
+        <Form form={markupRuleApplyForm} layout="vertical">
+          <Form.Item
+            label="Правило"
+            name="rule_set_id"
+            rules={[
+              {
+                validator: (_, value) => {
+                  const needsRule =
+                    applyScope === 'global' ||
+                    applySupplierMode === 'custom' ||
+                    typeof applySupplierMode === 'undefined';
+                  if (!needsRule) {
+                    return Promise.resolve();
+                  }
+                  if (value !== null && typeof value !== 'undefined') {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Оберіть правило'));
+                }
+              }
+            ]}
           >
-            <Radio value="keep">Не змінювати</Radio>
-            <Radio value="enable">Увімкнути</Radio>
-            <Radio value="disable">Вимкнути</Radio>
-          </Radio.Group>
-          <InputNumber
-            min={0}
-            step={1}
-            style={{ width: '100%' }}
-            value={bulkMinProfitAmount}
-            onChange={(value) => setBulkMinProfitAmount(value)}
-            placeholder="Сума, грн"
-            disabled={bulkMinProfitMode === 'disable'}
-          />
-          <Text className="muted">Сума застосовується, коли мін. націнка увімкнена.</Text>
-        </Space>
+            <Select
+              allowClear={!(applyScope === 'global' || applySupplierMode === 'custom')}
+              options={markupRuleSets.map((ruleSet) => ({
+                label:
+                  ruleSet.id === globalMarkupRuleSetId ? `${ruleSet.name} (global)` : ruleSet.name,
+                value: ruleSet.id
+              }))}
+            />
+          </Form.Item>
+          <Form.Item label="Застосувати до" name="scope" rules={[{ required: true }]}>
+            <Radio.Group>
+              <Radio value="global">Глобальне (без custom)</Radio>
+              <Radio value="suppliers">Вибрані постачальники</Radio>
+              <Radio value="all_suppliers">Усі постачальники</Radio>
+            </Radio.Group>
+          </Form.Item>
+          {applyScope !== 'global' ? (
+            <Form.Item label="Режим постачальників" name="supplier_mode" rules={[{ required: true }]}>
+              <Radio.Group>
+                <Radio value="custom">Власне правило</Radio>
+                <Radio value="global">Взяти global</Radio>
+                <Radio value="legacy">Legacy (старий %)</Radio>
+              </Radio.Group>
+            </Form.Item>
+          ) : null}
+          {applyScope === 'suppliers' ? (
+            <Form.Item
+              label="Постачальники"
+              name="supplier_ids"
+              rules={[
+                {
+                  validator: (_, value) => {
+                    if (applyScope !== 'suppliers') {
+                      return Promise.resolve();
+                    }
+                    if (Array.isArray(value) && value.length) {
+                      return Promise.resolve();
+                    }
+                    return Promise.reject(new Error('Оберіть хоча б одного постачальника'));
+                  }
+                }
+              ]}
+            >
+              <Select
+                mode="multiple"
+                options={suppliers.map((supplier) => ({
+                  label: supplier.name,
+                  value: supplier.id
+                }))}
+              />
+            </Form.Item>
+          ) : null}
+        </Form>
       </Modal>
 
       <Modal
