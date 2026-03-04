@@ -168,6 +168,46 @@ body {
   white-space: nowrap;
 }
 
+.rule-cell {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.rule-main {
+  font-weight: 600;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-main.legacy {
+  font-weight: 600;
+  color: #b45309;
+}
+
+.rule-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.rule-pill {
+  border-radius: 999px;
+  margin-inline-end: 0 !important;
+}
+
+.rule-hint {
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .muted {
   color: var(--muted);
 }

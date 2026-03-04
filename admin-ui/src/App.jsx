@@ -1510,12 +1510,53 @@ function App() {
         title: 'Правило',
         dataIndex: 'effective_rule_name',
         key: 'effective_rule_name',
-        width: 280,
+        width: 360,
         render: (value, record) => {
-          if (!value) {
-            return <Tag color="orange">Legacy (без правила)</Tag>;
+          const ruleName = value ? String(value) : '';
+          const defaultRuleName = record?.global_rule_name ? String(record.global_rule_name) : '';
+
+          if (!ruleName) {
+            return (
+              <div className="rule-cell">
+                <div className="rule-main legacy">Legacy (без правила)</div>
+                {defaultRuleName ? (
+                  <div className="rule-meta">
+                    <Tag color="orange" className="rule-pill">
+                      legacy
+                    </Tag>
+                    <span className="rule-hint" title={defaultRuleName}>
+                      За замовч.: {defaultRuleName}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="rule-meta">
+                    <Tag color="orange" className="rule-pill">
+                      legacy
+                    </Tag>
+                  </div>
+                )}
+              </div>
+            );
           }
-          return record?.uses_default_rule ? `${value} (за замовч.)` : value;
+
+          return (
+            <div className="rule-cell">
+              <div className="rule-main" title={ruleName}>
+                {ruleName}
+              </div>
+              <div className="rule-meta">
+                {record?.uses_default_rule ? (
+                  <Tag color="blue" className="rule-pill">
+                    за замовчуванням
+                  </Tag>
+                ) : (
+                  <Tag color="green" className="rule-pill">
+                    призначене
+                  </Tag>
+                )}
+              </div>
+            </div>
+          );
         }
       },
       { title: 'Пріоритет', dataIndex: 'priority', key: 'priority', width: 120 },
