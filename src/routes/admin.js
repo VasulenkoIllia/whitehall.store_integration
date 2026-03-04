@@ -265,18 +265,20 @@ router.get('/suppliers', async (req, res, next) => {
          s.created_at,
          COALESCE(s.pricing_mode, 'legacy') AS pricing_mode,
          s.markup_rule_set_id,
-         custom_rs.name AS custom_rule_name,
+         s.markup_rule_set_id AS assigned_rule_set_id,
+         assigned_rs.name AS assigned_rule_name,
          ms.global_rule_set_id,
-         global_rs.name AS global_rule_name,
+         default_rs.name AS global_rule_name,
+         s.markup_rule_set_id AS effective_rule_set_id,
+         assigned_rs.name AS effective_rule_name,
          CASE
-           WHEN COALESCE(s.pricing_mode, 'legacy') = 'custom' THEN custom_rs.name
-           WHEN COALESCE(s.pricing_mode, 'legacy') = 'global' THEN global_rs.name
-           ELSE NULL
-         END AS effective_rule_name
+           WHEN s.markup_rule_set_id IS NOT NULL AND s.markup_rule_set_id = ms.global_rule_set_id THEN TRUE
+           ELSE FALSE
+         END AS uses_default_rule
        FROM suppliers s
-       LEFT JOIN markup_rule_sets custom_rs ON custom_rs.id = s.markup_rule_set_id
+       LEFT JOIN markup_rule_sets assigned_rs ON assigned_rs.id = s.markup_rule_set_id
        LEFT JOIN markup_settings ms ON ms.id = 1
-       LEFT JOIN markup_rule_sets global_rs ON global_rs.id = ms.global_rule_set_id
+       LEFT JOIN markup_rule_sets default_rs ON default_rs.id = ms.global_rule_set_id
        ORDER BY s.id ASC`
     );
     res.json(result.rows);
@@ -287,7 +289,14 @@ router.get('/suppliers', async (req, res, next) => {
 
 router.post('/suppliers', async (req, res, next) => {
   try {
-    const { name, markup_percent, priority, min_profit_enabled, min_profit_amount } = req.body;
+    const {
+      name,
+      markup_percent,
+      priority,
+      min_profit_enabled,
+      min_profit_amount,
+      markup_rule_set_id
+    } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'name is required' });
     }
@@ -297,10 +306,81 @@ router.post('/suppliers', async (req, res, next) => {
     const minProfitAmount = minProfitEnabled
       ? Math.max(0, Number.isFinite(Number(min_profit_amount)) ? Number(min_profit_amount) : 0)
       : 0;
+
+    const hasMarkupRuleSetId = Object.prototype.hasOwnProperty.call(req.body, 'markup_rule_set_id');
+    let assignedRuleSetId = null;
+    if (
+      hasMarkupRuleSetId &&
+      !(markup_rule_set_id === null || markup_rule_set_id === '' || typeof markup_rule_set_id === 'undefined')
+    ) {
+      const parsedRuleSetId = Number(markup_rule_set_id);
+      if (!Number.isFinite(parsedRuleSetId)) {
+        return res.status(400).json({ error: 'markup_rule_set_id is invalid' });
+      }
+      const existingRuleSet = await db.query('SELECT id FROM markup_rule_sets WHERE id = $1', [
+        parsedRuleSetId
+      ]);
+      if (!existingRuleSet.rows[0]) {
+        return res.status(400).json({ error: 'markup rule set not found' });
+      }
+      assignedRuleSetId = parsedRuleSetId;
+    }
+
+    if (!assignedRuleSetId) {
+      const defaultRuleSet = await db.query(
+        'SELECT global_rule_set_id FROM markup_settings WHERE id = 1'
+      );
+      assignedRuleSetId = defaultRuleSet.rows[0]?.global_rule_set_id
+        ? Number(defaultRuleSet.rows[0].global_rule_set_id)
+        : null;
+    }
+
+    if (!assignedRuleSetId) {
+      const firstActiveRuleSet = await db.query(
+        `SELECT id
+         FROM markup_rule_sets
+         WHERE is_active = TRUE
+         ORDER BY id ASC
+         LIMIT 1`
+      );
+      const fallbackRuleSetId = firstActiveRuleSet.rows[0]?.id
+        ? Number(firstActiveRuleSet.rows[0].id)
+        : null;
+      if (!fallbackRuleSetId) {
+        return res.status(400).json({ error: 'default markup rule is not configured' });
+      }
+      await db.query(
+        `INSERT INTO markup_settings (id, global_rule_set_id, updated_at)
+         VALUES (1, $1, NOW())
+         ON CONFLICT (id) DO UPDATE
+         SET global_rule_set_id = EXCLUDED.global_rule_set_id,
+             updated_at = NOW()`,
+        [fallbackRuleSetId]
+      );
+      assignedRuleSetId = fallbackRuleSetId;
+    }
+    const effectivePricingMode = assignedRuleSetId ? 'custom' : 'legacy';
+
     const result = await db.query(
-      `INSERT INTO suppliers (name, markup_percent, priority, min_profit_enabled, min_profit_amount)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, markup_percent || 0, priorityValue, minProfitEnabled, minProfitAmount]
+      `INSERT INTO suppliers (
+        name,
+        markup_percent,
+        priority,
+        min_profit_enabled,
+        min_profit_amount,
+        pricing_mode,
+        markup_rule_set_id
+      )
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [
+        name,
+        markup_percent || 0,
+        priorityValue,
+        minProfitEnabled,
+        minProfitAmount,
+        effectivePricingMode,
+        assignedRuleSetId
+      ]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -383,17 +463,6 @@ router.put('/suppliers/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'supplier not found' });
     }
 
-    const requestedPricingMode =
-      typeof req.body.pricing_mode === 'string'
-        ? req.body.pricing_mode.trim().toLowerCase()
-        : undefined;
-    if (
-      typeof requestedPricingMode !== 'undefined' &&
-      !SUPPLIER_PRICING_MODES.has(requestedPricingMode)
-    ) {
-      return res.status(400).json({ error: 'pricing_mode is invalid' });
-    }
-
     const hasMarkupRuleSetId = Object.prototype.hasOwnProperty.call(req.body, 'markup_rule_set_id');
     let requestedRuleSetId;
     if (hasMarkupRuleSetId) {
@@ -418,14 +487,6 @@ router.put('/suppliers/:id', async (req, res, next) => {
       }
     }
 
-    const effectivePricingMode = requestedPricingMode || existingSupplier.pricing_mode || 'legacy';
-    const effectiveRuleSetId = hasMarkupRuleSetId
-      ? requestedRuleSetId
-      : existingSupplier.markup_rule_set_id;
-    if (effectivePricingMode === 'custom' && !effectiveRuleSetId) {
-      return res.status(400).json({ error: 'markup_rule_set_id is required for custom mode' });
-    }
-
     const values = [];
     const updates = buildUpdateClause(
       {
@@ -440,13 +501,12 @@ router.put('/suppliers/:id', async (req, res, next) => {
               ? Math.max(0, Number(req.body.min_profit_amount))
               : undefined,
         min_profit_enabled: req.body.min_profit_enabled,
-        pricing_mode: requestedPricingMode,
-        markup_rule_set_id:
-          requestedPricingMode && requestedPricingMode !== 'custom'
-            ? null
-            : hasMarkupRuleSetId
-              ? requestedRuleSetId
-              : undefined
+        pricing_mode: hasMarkupRuleSetId
+          ? requestedRuleSetId
+            ? 'custom'
+            : 'legacy'
+          : undefined,
+        markup_rule_set_id: hasMarkupRuleSetId ? requestedRuleSetId : undefined
       },
       values
     );
@@ -605,17 +665,54 @@ router.put('/markup-rule-sets/:id', async (req, res, next) => {
   }
 });
 
+router.post('/markup-rule-sets/default', async (req, res, next) => {
+  const client = await db.pool.connect();
+  try {
+    const ruleSetId = toOptionalNumber(req.body?.rule_set_id);
+    if (!ruleSetId) {
+      throw validationError('rule_set_id is required');
+    }
+
+    await client.query('BEGIN');
+    const existingRuleSet = await client.query(
+      'SELECT id, is_active FROM markup_rule_sets WHERE id = $1',
+      [ruleSetId]
+    );
+    if (!existingRuleSet.rows[0]) {
+      throw validationError('rule set not found');
+    }
+    if (!existingRuleSet.rows[0].is_active) {
+      throw validationError('rule set is inactive');
+    }
+
+    await client.query(
+      `INSERT INTO markup_settings (id, global_rule_set_id, updated_at)
+       VALUES (1, $1, NOW())
+       ON CONFLICT (id) DO UPDATE
+       SET global_rule_set_id = EXCLUDED.global_rule_set_id,
+           updated_at = NOW()`,
+      [ruleSetId]
+    );
+
+    await client.query('COMMIT');
+    const payload = await fetchMarkupRuleSets();
+    return res.json({
+      global_rule_set_id: payload.global_rule_set_id
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 router.post('/markup-rule-sets/apply', async (req, res, next) => {
   const client = await db.pool.connect();
   try {
     const scope = String(req.body?.scope || '').trim();
-    if (!['global', 'suppliers', 'all_suppliers'].includes(scope)) {
+    if (!['suppliers', 'all_suppliers'].includes(scope)) {
       throw validationError('scope is invalid');
-    }
-
-    const supplierMode = String(req.body?.supplier_mode || 'custom').trim().toLowerCase();
-    if (!SUPPLIER_PRICING_MODES.has(supplierMode)) {
-      throw validationError('supplier_mode is invalid');
     }
 
     const ruleSetId = toOptionalNumber(req.body?.rule_set_id);
@@ -625,7 +722,7 @@ router.post('/markup-rule-sets/apply', async (req, res, next) => {
           .filter((id) => Number.isFinite(id))
       : [];
 
-    if ((scope === 'global' || supplierMode === 'custom') && !ruleSetId) {
+    if (!ruleSetId) {
       throw validationError('rule_set_id is required');
     }
 
@@ -633,86 +730,47 @@ router.post('/markup-rule-sets/apply', async (req, res, next) => {
 
     if (ruleSetId) {
       const existingRuleSet = await client.query(
-        'SELECT id FROM markup_rule_sets WHERE id = $1',
+        'SELECT id, is_active FROM markup_rule_sets WHERE id = $1',
         [ruleSetId]
       );
       if (!existingRuleSet.rows[0]) {
         throw validationError('rule set not found');
       }
+      if (!existingRuleSet.rows[0].is_active) {
+        throw validationError('rule set is inactive');
+      }
     }
 
     let updatedSuppliers = 0;
 
-    if (scope === 'global') {
-      await client.query(
-        `INSERT INTO markup_settings (id, global_rule_set_id, updated_at)
-         VALUES (1, $1, NOW())
-         ON CONFLICT (id) DO UPDATE
-         SET global_rule_set_id = EXCLUDED.global_rule_set_id,
-             updated_at = NOW()`,
-        [ruleSetId]
-      );
-      const updated = await client.query(
-        `UPDATE suppliers
-         SET pricing_mode = 'global',
-             markup_rule_set_id = NULL
-         WHERE COALESCE(pricing_mode, 'legacy') <> 'custom'
-         RETURNING id`
-      );
-      updatedSuppliers = updated.rowCount || 0;
-    } else if (scope === 'suppliers') {
+    if (scope === 'suppliers') {
       if (!supplierIds.length) {
         throw validationError('supplier_ids are required');
       }
-
-      if (supplierMode === 'custom') {
-        const updated = await client.query(
-          `UPDATE suppliers
-           SET pricing_mode = 'custom',
-               markup_rule_set_id = $1
-           WHERE id = ANY($2::bigint[])
-           RETURNING id`,
-          [ruleSetId, supplierIds]
-        );
-        updatedSuppliers = updated.rowCount || 0;
-      } else {
-        const updated = await client.query(
-          `UPDATE suppliers
-           SET pricing_mode = $1,
-               markup_rule_set_id = NULL
-           WHERE id = ANY($2::bigint[])
-           RETURNING id`,
-          [supplierMode, supplierIds]
-        );
-        updatedSuppliers = updated.rowCount || 0;
-      }
+      const updated = await client.query(
+        `UPDATE suppliers
+         SET pricing_mode = 'custom',
+             markup_rule_set_id = $1
+         WHERE id = ANY($2::bigint[])
+         RETURNING id`,
+        [ruleSetId, supplierIds]
+      );
+      updatedSuppliers = updated.rowCount || 0;
     } else if (scope === 'all_suppliers') {
-      if (supplierMode === 'custom') {
-        const updated = await client.query(
-          `UPDATE suppliers
-           SET pricing_mode = 'custom',
-               markup_rule_set_id = $1
-           RETURNING id`,
-          [ruleSetId]
-        );
-        updatedSuppliers = updated.rowCount || 0;
-      } else {
-        const updated = await client.query(
-          `UPDATE suppliers
-           SET pricing_mode = $1,
-               markup_rule_set_id = NULL
-           RETURNING id`,
-          [supplierMode]
-        );
-        updatedSuppliers = updated.rowCount || 0;
-      }
+      const updated = await client.query(
+        `UPDATE suppliers
+         SET pricing_mode = 'custom',
+             markup_rule_set_id = $1
+         RETURNING id`,
+        [ruleSetId]
+      );
+      updatedSuppliers = updated.rowCount || 0;
     }
 
     await client.query('COMMIT');
     const payload = await fetchMarkupRuleSets();
     return res.json({
       scope,
-      supplier_mode: supplierMode,
       updated_suppliers: updatedSuppliers,
       global_rule_set_id: payload.global_rule_set_id
     });
@@ -1475,8 +1533,36 @@ router.put('/price-overrides/:id', async (req, res, next) => {
       } else {
         await db.query(
           `UPDATE products_final pf
-           SET price_final = CEIL(compute_markup_price(pf.price_base, pf.supplier_id) / 10) * 10
+           SET price_final = CEIL(
+             (
+               CASE
+                 WHEN rm.action_type = 'fixed_add' THEN pf.price_base + rm.action_value
+                 WHEN rm.action_type = 'percent' THEN pf.price_base * (1 + rm.action_value / 100)
+                 ELSE CASE
+                   WHEN s.min_profit_enabled = TRUE
+                     AND (pf.price_base * (1 + s.markup_percent / 100)) - pf.price_base < s.min_profit_amount
+                     THEN pf.price_base + s.min_profit_amount
+                   ELSE pf.price_base * (1 + s.markup_percent / 100)
+                 END
+               END
+             ) / 10
+           ) * 10
+           FROM suppliers s
+           LEFT JOIN LATERAL (
+             SELECT c.action_type, c.action_value
+             FROM markup_rule_conditions c
+             JOIN markup_rule_sets rs
+               ON rs.id = c.rule_set_id
+              AND rs.is_active = TRUE
+             WHERE c.rule_set_id = s.markup_rule_set_id
+               AND c.is_active = TRUE
+               AND pf.price_base >= c.price_from
+               AND (c.price_to IS NULL OR pf.price_base < c.price_to)
+             ORDER BY c.priority ASC, c.id ASC
+             LIMIT 1
+           ) rm ON TRUE
            WHERE pf.supplier_id IS NOT NULL
+             AND pf.supplier_id = s.id
              AND pf.article = $1
              AND NULLIF(pf.size, '') IS NOT DISTINCT FROM NULLIF($2, '')`,
           [updated.article, updated.size]

@@ -36,21 +36,15 @@ async function buildFinalDataset(jobId) {
           pr.extra,
           pr.supplier_id,
           s.priority AS supplier_priority,
-          COALESCE(s.pricing_mode, 'legacy') AS pricing_mode,
           CASE
             WHEN s.min_profit_enabled = TRUE
               AND (pr.price * (1 + s.markup_percent / 100)) - pr.price < s.min_profit_amount
               THEN pr.price + s.min_profit_amount
             ELSE pr.price * (1 + s.markup_percent / 100)
           END AS legacy_price,
-          CASE
-            WHEN COALESCE(s.pricing_mode, 'legacy') = 'custom' THEN s.markup_rule_set_id
-            WHEN COALESCE(s.pricing_mode, 'legacy') = 'global' THEN ms.global_rule_set_id
-            ELSE NULL
-          END AS effective_rule_set_id
+          s.markup_rule_set_id AS effective_rule_set_id
         FROM products_raw pr
         JOIN suppliers s ON s.id = pr.supplier_id
-        LEFT JOIN markup_settings ms ON ms.id = 1
         WHERE s.is_active = TRUE
           AND pr.job_id = $2
       ),
@@ -61,8 +55,11 @@ async function buildFinalDataset(jobId) {
           c.action_value,
           ROW_NUMBER() OVER (PARTITION BY b.raw_id ORDER BY c.priority ASC, c.id ASC) AS rn
         FROM base b
+        JOIN markup_rule_sets rs
+          ON rs.id = b.effective_rule_set_id
+         AND rs.is_active = TRUE
         JOIN markup_rule_conditions c
-          ON c.rule_set_id = b.effective_rule_set_id
+          ON c.rule_set_id = rs.id
          AND c.is_active = TRUE
          AND b.price_base >= c.price_from
          AND (c.price_to IS NULL OR b.price_base < c.price_to)
@@ -74,7 +71,6 @@ async function buildFinalDataset(jobId) {
           b.quantity,
           b.price_base,
           CASE
-            WHEN b.pricing_mode = 'legacy' THEN b.legacy_price
             WHEN b.effective_rule_set_id IS NULL THEN b.legacy_price
             WHEN rm.raw_id IS NULL THEN b.legacy_price
             WHEN rm.action_type = 'fixed_add' THEN b.price_base + rm.action_value

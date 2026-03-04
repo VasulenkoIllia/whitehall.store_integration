@@ -280,6 +280,14 @@ const FRIENDLY_ERROR_MAP = [
     message: 'Правило з такою назвою вже існує.'
   },
   {
+    match: /rule set is inactive/i,
+    message: 'Обране правило вимкнене. Увімкніть його або оберіть інше.'
+  },
+  {
+    match: /default markup rule is not configured/i,
+    message: 'Правило за замовчуванням не налаштоване.'
+  },
+  {
     match: /conditions are required/i,
     message: 'Додайте хоча б одну умову в правилі.'
   },
@@ -436,10 +444,7 @@ function App() {
   const [markupRuleApplyForm] = Form.useForm();
   const [sourceForm] = Form.useForm();
   const [priceOverrideForm] = Form.useForm();
-  const minProfitEnabledCreate = Form.useWatch('min_profit_enabled', supplierCreateForm);
-  const minProfitEnabledEdit = Form.useWatch('min_profit_enabled', supplierForm);
   const applyScope = Form.useWatch('scope', markupRuleApplyForm);
-  const applySupplierMode = Form.useWatch('supplier_mode', markupRuleApplyForm);
 
   const [priceOverrideModalOpen, setPriceOverrideModalOpen] = useState(false);
   const [priceOverrideRow, setPriceOverrideRow] = useState(null);
@@ -678,6 +683,26 @@ function App() {
     }
   };
 
+  const setMarkupRuleSetAsDefault = async () => {
+    const targetRuleSetId = Number.isFinite(Number(editingMarkupRuleSetId))
+      ? Number(editingMarkupRuleSetId)
+      : null;
+    if (!targetRuleSetId) {
+      message.error('Оберіть правило для встановлення за замовчуванням');
+      return;
+    }
+    try {
+      await apiFetch('/markup-rule-sets/default', {
+        method: 'POST',
+        body: JSON.stringify({ rule_set_id: targetRuleSetId })
+      });
+      await Promise.all([refreshMarkupRuleSets(), refreshSuppliers()]);
+      message.success('Правило за замовчуванням оновлено');
+    } catch (err) {
+      showError(err);
+    }
+  };
+
   const openMarkupRuleApply = async () => {
     try {
       const { ruleSets, globalRuleSetId } = await refreshMarkupRuleSets();
@@ -689,7 +714,6 @@ function App() {
       markupRuleApplyForm.setFieldsValue({
         rule_set_id: firstRuleSetId,
         scope: 'suppliers',
-        supplier_mode: 'custom',
         supplier_ids: selectedSupplierIds
       });
       setMarkupRuleApplyOpen(true);
@@ -702,14 +726,9 @@ function App() {
     try {
       const values = await markupRuleApplyForm.validateFields();
       const payload = {
-        scope: values.scope
+        scope: values.scope,
+        rule_set_id: values.rule_set_id
       };
-      if (values.rule_set_id !== null && typeof values.rule_set_id !== 'undefined') {
-        payload.rule_set_id = values.rule_set_id;
-      }
-      if (values.scope !== 'global') {
-        payload.supplier_mode = values.supplier_mode || 'custom';
-      }
       if (values.scope === 'suppliers') {
         payload.supplier_ids = values.supplier_ids || [];
       }
@@ -974,9 +993,7 @@ function App() {
   const openSupplierCreate = () => {
     supplierCreateForm.resetFields();
     supplierCreateForm.setFieldsValue({
-      priority: 100,
-      min_profit_enabled: true,
-      min_profit_amount: 500
+      priority: 100
     });
     setSupplierCreateOpen(true);
   };
@@ -985,13 +1002,8 @@ function App() {
     setSelectedSupplier(supplier);
     supplierForm.setFieldsValue({
       name: supplier?.name || '',
-      markup: supplier?.markup_percent || 0,
       priority: Number.isFinite(supplier?.priority) ? supplier.priority : 100,
-      active: supplier?.is_active ?? true,
-      min_profit_enabled: supplier?.min_profit_enabled ?? true,
-      min_profit_amount: Number.isFinite(Number(supplier?.min_profit_amount))
-        ? Number(supplier.min_profit_amount)
-        : 500
+      active: supplier?.is_active ?? true
     });
     setSupplierSettingsOpen(true);
     await refreshSupplierDetails(supplier);
@@ -1002,31 +1014,19 @@ function App() {
       return;
     }
     try {
-      const minProfitAmountValue = Number(values.min_profit_amount);
-      const minProfitAmount = values.min_profit_enabled
-        ? Math.max(0, Number.isFinite(minProfitAmountValue) ? minProfitAmountValue : 0)
-        : 0;
       const updated = await apiFetch(`/suppliers/${selectedSupplier.id}`, {
         method: 'PUT',
         body: JSON.stringify({
           name: values.name,
-          markup_percent: values.markup || 0,
           priority: Number.isFinite(values.priority) ? values.priority : 100,
-          is_active: values.active,
-          min_profit_enabled: values.min_profit_enabled,
-          min_profit_amount: minProfitAmount
+          is_active: values.active
         })
       });
       setSelectedSupplier(updated);
       supplierForm.setFieldsValue({
         name: updated?.name || '',
-        markup: updated?.markup_percent || 0,
         priority: Number.isFinite(updated?.priority) ? updated.priority : 100,
-        active: updated?.is_active ?? true,
-        min_profit_enabled: updated?.min_profit_enabled ?? true,
-        min_profit_amount: Number.isFinite(Number(updated?.min_profit_amount))
-          ? Number(updated.min_profit_amount)
-          : 500
+        active: updated?.is_active ?? true
       });
       await refreshSuppliers();
       await refreshSupplierDetails(selectedSupplier);
@@ -1037,18 +1037,11 @@ function App() {
 
   const createSupplier = async (values) => {
     try {
-      const minProfitAmountValue = Number(values.min_profit_amount);
-      const minProfitAmount = values.min_profit_enabled
-        ? Math.max(0, Number.isFinite(minProfitAmountValue) ? minProfitAmountValue : 0)
-        : 0;
       const created = await apiFetch('/suppliers', {
         method: 'POST',
         body: JSON.stringify({
           name: values.name,
-          markup_percent: values.markup || 0,
-          priority: Number.isFinite(values.priority) ? values.priority : 100,
-          min_profit_enabled: values.min_profit_enabled ?? true,
-          min_profit_amount: minProfitAmount
+          priority: Number.isFinite(values.priority) ? values.priority : 100
         })
       });
       setSupplierCreateOpen(false);
@@ -1074,13 +1067,8 @@ function App() {
         setSelectedSupplier(updated);
         supplierForm.setFieldsValue({
           name: updated?.name || '',
-          markup: updated?.markup_percent || 0,
           priority: Number.isFinite(updated?.priority) ? updated.priority : 100,
-          active: updated?.is_active ?? true,
-          min_profit_enabled: updated?.min_profit_enabled ?? true,
-          min_profit_amount: Number.isFinite(Number(updated?.min_profit_amount))
-            ? Number(updated.min_profit_amount)
-            : 500
+          active: updated?.is_active ?? true
         });
       }
       await refreshSuppliers();
@@ -1515,61 +1503,20 @@ function App() {
   );
 
   const supplierColumns = useMemo(() => {
-    const pricingModeLabels = {
-      legacy: 'Legacy',
-      global: 'Global',
-      custom: 'Custom'
-    };
     const base = [
       { title: 'ID', dataIndex: 'id', key: 'id', width: 60 },
       { title: 'Назва', dataIndex: 'name', key: 'name' },
       {
-        title: 'Режим',
-        dataIndex: 'pricing_mode',
-        key: 'pricing_mode',
-        width: 120,
-        render: (value) => {
-          const mode = String(value || 'legacy').toLowerCase();
-          if (mode === 'custom') {
-            return <Tag color="green">{pricingModeLabels.custom}</Tag>;
-          }
-          if (mode === 'global') {
-            return <Tag color="blue">{pricingModeLabels.global}</Tag>;
-          }
-          return <Tag>{pricingModeLabels.legacy}</Tag>;
-        }
-      },
-      {
         title: 'Правило',
         dataIndex: 'effective_rule_name',
         key: 'effective_rule_name',
-        width: 240,
+        width: 280,
         render: (value, record) => {
-          if (record?.pricing_mode === 'legacy') {
-            return '-';
+          if (!value) {
+            return <Tag color="orange">Legacy (без правила)</Tag>;
           }
-          return value || '-';
+          return record?.uses_default_rule ? `${value} (за замовч.)` : value;
         }
-      },
-      {
-        title: 'Націнка %',
-        dataIndex: 'markup_percent',
-        key: 'markup_percent',
-        width: 120
-      },
-      {
-        title: 'Мін. націнка',
-        dataIndex: 'min_profit_enabled',
-        key: 'min_profit_enabled',
-        width: 140,
-        render: (value) => (value ? <Tag color="blue">увімкнено</Tag> : <Tag>вимкнено</Tag>)
-      },
-      {
-        title: 'Сума',
-        dataIndex: 'min_profit_amount',
-        key: 'min_profit_amount',
-        width: 120,
-        render: (value) => (value === null || typeof value === 'undefined' ? '-' : value)
       },
       { title: 'Пріоритет', dataIndex: 'priority', key: 'priority', width: 120 },
       {
@@ -2710,28 +2657,12 @@ function App() {
           <Form.Item label="Назва" name="name" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="Націнка %" name="markup">
-            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="Мінімальна націнка">
-            <Space align="center">
-              <Form.Item name="min_profit_enabled" valuePropName="checked" noStyle>
-                <Switch />
-              </Form.Item>
-              <Form.Item name="min_profit_amount" noStyle>
-                <InputNumber
-                  min={0}
-                  step={1}
-                  style={{ width: 140 }}
-                  disabled={minProfitEnabledCreate === false}
-                />
-              </Form.Item>
-              <Text className="muted">грн</Text>
-            </Space>
-          </Form.Item>
           <Form.Item label="Пріоритет" name="priority">
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
+          <Text className="muted">
+            Новий постачальник отримує правило за замовчуванням.
+          </Text>
         </Form>
       </Modal>
 
@@ -2754,12 +2685,18 @@ function App() {
               options={markupRuleSets.map((ruleSet) => ({
                 label:
                   ruleSet.id === globalMarkupRuleSetId
-                    ? `${ruleSet.name} (global)`
+                    ? `${ruleSet.name} (за замовч.)`
                     : ruleSet.name,
                 value: ruleSet.id
               }))}
             />
             <Button onClick={startMarkupRuleCreate}>Нове правило</Button>
+            <Button
+              onClick={setMarkupRuleSetAsDefault}
+              disabled={!Number.isFinite(Number(editingMarkupRuleSetId))}
+            >
+              Зробити за замовчуванням
+            </Button>
           </Space>
 
           <Form form={markupRuleForm} layout="vertical">
@@ -2877,52 +2814,23 @@ function App() {
         onOk={applyMarkupRuleSet}
       >
         <Form form={markupRuleApplyForm} layout="vertical">
-          <Form.Item
-            label="Правило"
-            name="rule_set_id"
-            rules={[
-              {
-                validator: (_, value) => {
-                  const needsRule =
-                    applyScope === 'global' ||
-                    applySupplierMode === 'custom' ||
-                    typeof applySupplierMode === 'undefined';
-                  if (!needsRule) {
-                    return Promise.resolve();
-                  }
-                  if (value !== null && typeof value !== 'undefined') {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error('Оберіть правило'));
-                }
-              }
-            ]}
-          >
+          <Form.Item label="Правило" name="rule_set_id" rules={[{ required: true, message: 'Оберіть правило' }]}>
             <Select
-              allowClear={!(applyScope === 'global' || applySupplierMode === 'custom')}
               options={markupRuleSets.map((ruleSet) => ({
                 label:
-                  ruleSet.id === globalMarkupRuleSetId ? `${ruleSet.name} (global)` : ruleSet.name,
+                  ruleSet.id === globalMarkupRuleSetId
+                    ? `${ruleSet.name} (за замовч.)`
+                    : ruleSet.name,
                 value: ruleSet.id
               }))}
             />
           </Form.Item>
           <Form.Item label="Застосувати до" name="scope" rules={[{ required: true }]}>
             <Radio.Group>
-              <Radio value="global">Глобальне (без custom)</Radio>
               <Radio value="suppliers">Вибрані постачальники</Radio>
               <Radio value="all_suppliers">Усі постачальники</Radio>
             </Radio.Group>
           </Form.Item>
-          {applyScope !== 'global' ? (
-            <Form.Item label="Режим постачальників" name="supplier_mode" rules={[{ required: true }]}>
-              <Radio.Group>
-                <Radio value="custom">Власне правило</Radio>
-                <Radio value="global">Взяти global</Radio>
-                <Radio value="legacy">Legacy (старий %)</Radio>
-              </Radio.Group>
-            </Form.Item>
-          ) : null}
           {applyScope === 'suppliers' ? (
             <Form.Item
               label="Постачальники"
@@ -2998,29 +2906,6 @@ function App() {
                         <Col xs={24} md={12}>
                           <Form.Item label="Назва" name="name" rules={[{ required: true }]}>
                             <Input />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item label="Націнка %" name="markup">
-                            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item label="Мінімальна націнка">
-                            <Space align="center">
-                              <Form.Item name="min_profit_enabled" valuePropName="checked" noStyle>
-                                <Switch />
-                              </Form.Item>
-                              <Form.Item name="min_profit_amount" noStyle>
-                                <InputNumber
-                                  min={0}
-                                  step={1}
-                                  style={{ width: 140 }}
-                                  disabled={minProfitEnabledEdit === false}
-                                />
-                              </Form.Item>
-                              <Text className="muted">грн</Text>
-                            </Space>
                           </Form.Item>
                         </Col>
                         <Col xs={24} md={12}>
