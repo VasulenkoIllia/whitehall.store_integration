@@ -36,6 +36,76 @@ async function acquireLock(jobId) {
   }
 }
 
+async function assertNoVisibleRealParentRows(jobId) {
+  const result = await db.query(
+    `WITH real_parents AS (
+       SELECT DISTINCT
+         parent_article,
+         LOWER(COALESCE(supplier, '')) AS supplier_key
+       FROM horoshop_mirror
+       WHERE parent_article IS NOT NULL
+         AND parent_article <> ''
+         AND article <> parent_article
+     ),
+     violations AS (
+       SELECT
+         p.id,
+         p.article,
+         p.supplier,
+         p.parent_article,
+         p.presence_ua,
+         p.display_in_showcase,
+         p.price
+       FROM horoshop_api_preview p
+       JOIN real_parents rp
+         ON rp.parent_article = p.article
+        AND rp.supplier_key = LOWER(COALESCE(p.supplier, ''))
+       WHERE COALESCE(p.display_in_showcase, FALSE) = TRUE
+          OR COALESCE(p.presence_ua, '') = 'В наявності'
+     )
+     SELECT
+       id,
+       article,
+       supplier,
+       parent_article,
+       presence_ua,
+       display_in_showcase,
+       price,
+       COUNT(*) OVER() AS total_count
+     FROM violations
+     ORDER BY id DESC
+     LIMIT 20`
+  );
+
+  const total = Number(result.rows[0]?.total_count || 0);
+  if (!total) {
+    return;
+  }
+
+  const sample = result.rows.map((row) => ({
+    id: row.id,
+    article: row.article,
+    supplier: row.supplier,
+    parentArticle: row.parent_article,
+    presenceUa: row.presence_ua,
+    displayInShowcase: row.display_in_showcase,
+    price: row.price
+  }));
+
+  if (jobId) {
+    await logService.log(jobId, 'error', 'Horoshop import blocked: real parent SKU is visible', {
+      total,
+      sample
+    });
+  }
+
+  const err = new Error(`Horoshop import blocked: ${total} real parent SKU rows are visible in API preview`);
+  err.code = 'PARENT_SKU_VISIBILITY_VIOLATION';
+  err.status = 422;
+  err.details = { total, sample };
+  throw err;
+}
+
 function buildMappingMeta(record) {
   if (!record) {
     return null;
@@ -485,6 +555,7 @@ async function runHoroshopImport() {
     await jobService.startJob(jobId);
     await logService.log(jobId, 'info', 'Horoshop import started');
 
+    await assertNoVisibleRealParentRows(jobId);
     const result = await importHoroshopPreview(jobId);
 
     await jobService.finishJob(jobId);
@@ -558,7 +629,10 @@ async function runUpdatePipeline(options = {}) {
       meta: { pipeline_job_id: jobId },
       startMessage: 'Horoshop import started',
       finishMessage: 'Horoshop import finished',
-      handler: (stepJobId) => importHoroshopPreview(stepJobId)
+      handler: async (stepJobId) => {
+        await assertNoVisibleRealParentRows(stepJobId);
+        return importHoroshopPreview(stepJobId);
+      }
     });
     await logService.log(jobId, 'info', 'Update pipeline finished', {
       importJobId: importStep.job.id,

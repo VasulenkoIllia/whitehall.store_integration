@@ -108,6 +108,28 @@ async function fetchHoroshopMirrorMap({ supplier } = {}) {
   return map;
 }
 
+async function fetchRealParentArticles(supplier) {
+  const values = [];
+  let supplierFilter = '';
+
+  if (supplier) {
+    values.push(supplier);
+    supplierFilter = `AND LOWER(supplier) = LOWER($1)`;
+  }
+
+  const result = await db.query(
+    `SELECT DISTINCT parent_article
+     FROM horoshop_mirror
+     WHERE parent_article IS NOT NULL
+       AND parent_article <> ''
+       AND article <> parent_article
+       ${supplierFilter}`,
+    values
+  );
+
+  return new Set(result.rows.map((row) => normalizeKey(row.parent_article)).filter(Boolean));
+}
+
 function normalizePrice(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
@@ -307,11 +329,15 @@ async function exportForHoroshop(jobId, options = {}) {
   let apiHideTotal = 0;
   let apiShowTotal = 0;
   let apiSkipped = 0;
+  let apiParentBlocked = 0;
+  let fallbackToBaseCount = 0;
+  let fallbackBlockedForRealParent = 0;
   const presentSkus = new Set();
   const apiArticles = new Set();
   const apiInsertBatch = [];
   const apiBatchSize = 500;
   const mirrorMap = await fetchHoroshopMirrorMap({ supplier: supplierFilter });
+  const realParentArticles = await fetchRealParentArticles(supplierFilter);
 
   let lastSku = '';
   while (true) {
@@ -379,7 +405,24 @@ async function exportForHoroshop(jobId, options = {}) {
       }
       const priceFinal = Number(row.price_final);
       const sku = normalizeKey(row.sku_article);
-      const mirrorRow = mirrorMap.get(sku) || mirrorMap.get(normalizeKey(row.article));
+      const baseArticle = normalizeKey(row.article);
+      const hasSize = Boolean(normalizeSize(row.size));
+      const mirrorSkuRow = mirrorMap.get(sku);
+      const mirrorBaseRow = mirrorMap.get(baseArticle);
+      const baseIsRealParent = baseArticle && realParentArticles.has(baseArticle);
+      const useBaseFallback = Boolean(
+        !mirrorSkuRow &&
+          mirrorBaseRow &&
+          (!hasSize || !baseIsRealParent)
+      );
+      if (!mirrorSkuRow && mirrorBaseRow) {
+        if (useBaseFallback) {
+          fallbackToBaseCount += 1;
+        } else {
+          fallbackBlockedForRealParent += 1;
+        }
+      }
+      const mirrorRow = mirrorSkuRow || (useBaseFallback ? mirrorBaseRow : null);
       const horoshopArticle = normalizeKey(mirrorRow?.article || sku);
       presentSkus.add(sku);
       if (mirrorRow?.article) {
@@ -401,13 +444,18 @@ async function exportForHoroshop(jobId, options = {}) {
           ])
           .commit();
       }
-      if (String(mirrorRow?.supplier || '').toLowerCase() === supplierLower) {
-        const parentArticle = mirrorRow?.parent_article || '';
+      const mirrorSupplier = mirrorRow?.supplier || mirrorBaseRow?.supplier || '';
+      if (String(mirrorSupplier).toLowerCase() === supplierLower) {
+        const parentArticle = mirrorRow?.parent_article || (hasSize && baseIsRealParent ? baseArticle : '');
+        if (realParentArticles.has(horoshopArticle)) {
+          apiParentBlocked += 1;
+          continue;
+        }
         if (!apiArticles.has(horoshopArticle)) {
           const apiRow = {
             jobId,
             article: horoshopArticle,
-            supplier: mirrorRow?.supplier || '',
+            supplier: mirrorSupplier,
             presenceUa: 'В наявності',
             displayInShowcase: true,
             parentArticle,
@@ -558,6 +606,9 @@ async function exportForHoroshop(jobId, options = {}) {
     apiShowTotal,
     apiHideTotal,
     apiSkipped,
+    apiParentBlocked,
+    fallbackToBaseCount,
+    fallbackBlockedForRealParent,
     supplier: supplierFilter,
     finalizeJobId
   });
@@ -571,6 +622,9 @@ async function exportForHoroshop(jobId, options = {}) {
     apiShowTotal,
     apiHideTotal,
     apiSkipped,
+    apiParentBlocked,
+    fallbackToBaseCount,
+    fallbackBlockedForRealParent,
     supplier: supplierFilter,
     finalizeJobId
   };
