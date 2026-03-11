@@ -23,7 +23,9 @@ async function buildFinalDataset(jobId) {
     );
     const rawCount = Number(rawCountResult.rows[0].count || 0);
 
-    await client.query('TRUNCATE products_final');
+    // Avoid ACCESS EXCLUSIVE lock from TRUNCATE in production.
+    // DELETE keeps readers available while finalize transaction is running.
+    await client.query('DELETE FROM products_final');
 
     const insertSql = `
       WITH base AS (
