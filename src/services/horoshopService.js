@@ -29,7 +29,9 @@ function isRateLimitError(message) {
 }
 
 function isAuthError(message) {
-  return /incorrect auth data/i.test(String(message || ''));
+  return /(incorrect auth data|unknown server error\.?\s*please let us know|invalid token|token (is )?(expired|invalid)|unauthorized|forbidden|auth(entication)? required|session (expired|invalid))/i.test(
+    String(message || '')
+  );
 }
 
 function isTransientError(message) {
@@ -505,6 +507,18 @@ async function syncHoroshopCatalog(jobId) {
           token = await getToken();
           if (jobId) {
             await logService.log(jobId, 'info', 'Horoshop token refreshed after wait', {
+              offset
+            });
+          }
+          continue;
+        }
+
+        if (isAuthError(message) && retryAttempts < maxAttempts) {
+          retryAttempts += 1;
+          token = await getToken();
+          if (jobId) {
+            await logService.log(jobId, 'warning', 'Horoshop token refreshed after auth error', {
+              attempt: retryAttempts,
               offset
             });
           }
