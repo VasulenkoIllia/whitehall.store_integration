@@ -1,10 +1,15 @@
 const db = require('../db');
 const logService = require('./logService');
+const { finalizeStatementTimeoutMs } = require('../config');
 
 async function buildFinalDataset(jobId) {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
+    if (Number.isFinite(finalizeStatementTimeoutMs) && finalizeStatementTimeoutMs > 0) {
+      const timeoutMs = Math.max(1000, Math.trunc(finalizeStatementTimeoutMs));
+      await client.query(`SELECT set_config('statement_timeout', $1, true)`, [String(timeoutMs)]);
+    }
 
     const importJobResult = await client.query(
       `SELECT id FROM jobs
@@ -134,7 +139,20 @@ async function buildFinalDataset(jobId) {
       FROM filtered;
     `;
 
-    await client.query(insertSql, [jobId, importJobId]);
+    try {
+      await client.query(insertSql, [jobId, importJobId]);
+    } catch (err) {
+      if (err?.code === '57014') {
+        const timeoutMs = Number.isFinite(finalizeStatementTimeoutMs)
+          ? Math.max(1000, Math.trunc(finalizeStatementTimeoutMs))
+          : null;
+        const timeoutHint = timeoutMs ? `${timeoutMs}ms` : 'configured timeout';
+        throw new Error(
+          `Finalize query timed out after ${timeoutHint}. Check import volume and indexes.`
+        );
+      }
+      throw err;
+    }
 
     await client.query(
       `UPDATE products_final pf

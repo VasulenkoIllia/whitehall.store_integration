@@ -58,6 +58,7 @@ async function failJob(jobId, error) {
      WHERE id = $3 AND status <> 'canceled'`,
     ['failed', JSON.stringify({ error: error?.message || String(error) }), jobId]
   );
+  await db.query('DELETE FROM job_locks WHERE job_id = $1', [jobId]);
 }
 
 async function findRunningJobs(types = []) {
@@ -72,14 +73,38 @@ async function findRunningJobs(types = []) {
 }
 
 async function acquireJobLock(jobId, name = 'global') {
-  const result = await db.query(
-    `INSERT INTO job_locks (name, job_id)
-     VALUES ($1, $2)
-     ON CONFLICT (name) DO NOTHING
-     RETURNING name`,
-    [name, jobId]
+  const tryAcquire = async () => {
+    const result = await db.query(
+      `INSERT INTO job_locks (name, job_id)
+       VALUES ($1, $2)
+       ON CONFLICT (name) DO NOTHING
+       RETURNING name`,
+      [name, jobId]
+    );
+    return result.rowCount > 0;
+  };
+
+  if (await tryAcquire()) {
+    return true;
+  }
+
+  // Clear orphan/stale lock rows and retry once.
+  await db.query(
+    `DELETE FROM job_locks jl
+     WHERE jl.name = $1
+       AND (
+         jl.job_id IS NULL
+         OR NOT EXISTS (
+           SELECT 1
+           FROM jobs j
+           WHERE j.id = jl.job_id
+             AND j.status = 'running'
+         )
+       )`,
+    [name]
   );
-  return result.rowCount > 0;
+
+  return tryAcquire();
 }
 
 async function releaseJobLock(jobId, name = 'global') {
