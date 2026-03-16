@@ -1,6 +1,6 @@
 const db = require('../db');
 const logService = require('./logService');
-const { finalizeStatementTimeoutMs } = require('../config');
+const { finalizeStatementTimeoutMs, finalizeWorkMemMb } = require('../config');
 
 async function buildFinalDataset(jobId) {
   const client = await db.pool.connect();
@@ -9,6 +9,10 @@ async function buildFinalDataset(jobId) {
     if (Number.isFinite(finalizeStatementTimeoutMs) && finalizeStatementTimeoutMs > 0) {
       const timeoutMs = Math.max(1000, Math.trunc(finalizeStatementTimeoutMs));
       await client.query(`SELECT set_config('statement_timeout', $1, true)`, [String(timeoutMs)]);
+    }
+    if (Number.isFinite(finalizeWorkMemMb) && finalizeWorkMemMb > 0) {
+      const workMemMb = Math.max(4, Math.trunc(finalizeWorkMemMb));
+      await client.query(`SELECT set_config('work_mem', $1, true)`, [`${workMemMb}MB`]);
     }
 
     const importJobResult = await client.query(
@@ -104,18 +108,37 @@ async function buildFinalDataset(jobId) {
           supplier_priority
         FROM computed
       ),
-      ranked AS (
+      best_priority AS (
         SELECT
-          *,
-          MIN(supplier_priority) OVER (PARTITION BY article, size) AS min_priority,
-          MIN(price_final) OVER (PARTITION BY article, size, supplier_priority) AS min_price_for_priority
+          article,
+          size,
+          MIN(supplier_priority) AS min_priority
         FROM rounded
+        GROUP BY article, size
+      ),
+      best_price AS (
+        SELECT
+          r.article,
+          r.size,
+          MIN(r.price_final) AS min_price_for_priority
+        FROM rounded r
+        JOIN best_priority bp
+          ON bp.article IS NOT DISTINCT FROM r.article
+         AND bp.size IS NOT DISTINCT FROM r.size
+         AND bp.min_priority = r.supplier_priority
+        GROUP BY r.article, r.size
       ),
       filtered AS (
-        SELECT *
-        FROM ranked
-        WHERE supplier_priority = min_priority
-          AND price_final = min_price_for_priority
+        SELECT r.*
+        FROM rounded r
+        JOIN best_priority bp
+          ON bp.article IS NOT DISTINCT FROM r.article
+         AND bp.size IS NOT DISTINCT FROM r.size
+        JOIN best_price bpr
+          ON bpr.article IS NOT DISTINCT FROM r.article
+         AND bpr.size IS NOT DISTINCT FROM r.size
+        WHERE r.supplier_priority = bp.min_priority
+          AND r.price_final = bpr.min_price_for_priority
       )
       INSERT INTO products_final (
         job_id,

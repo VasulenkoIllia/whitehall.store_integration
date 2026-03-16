@@ -15,6 +15,7 @@ const horoshopStoreRaw = process.env.HOROSHOP_STORE_RAW === 'true';
 const jobRetentionDays = Number(process.env.JOB_RETENTION_DAYS || 10);
 const jobTimeoutMinutes = Number(process.env.JOB_TIMEOUT_MINUTES || 0);
 const finalizeStatementTimeoutMs = Number(process.env.FINALIZE_STATEMENT_TIMEOUT_MS || 30 * 60 * 1000);
+const finalizeWorkMemMb = Number(process.env.FINALIZE_WORK_MEM_MB || 0);
 const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
 const telegramChatId = process.env.TELEGRAM_CHAT_ID || '';
 const telegramAppName = process.env.TELEGRAM_APP_NAME || '';
@@ -37,6 +38,7 @@ module.exports = {
   jobRetentionDays,
   jobTimeoutMinutes,
   finalizeStatementTimeoutMs,
+  finalizeWorkMemMb,
   telegramBotToken,
   telegramChatId,
   telegramAppName,
