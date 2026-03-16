@@ -16,6 +16,7 @@ const jobRetentionDays = Number(process.env.JOB_RETENTION_DAYS || 10);
 const jobTimeoutMinutes = Number(process.env.JOB_TIMEOUT_MINUTES || 0);
 const finalizeStatementTimeoutMs = Number(process.env.FINALIZE_STATEMENT_TIMEOUT_MS || 30 * 60 * 1000);
 const finalizeWorkMemMb = Number(process.env.FINALIZE_WORK_MEM_MB || 0);
+const postImportAnalyzeEnabled = process.env.POST_IMPORT_ANALYZE !== 'false';
 const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
 const telegramChatId = process.env.TELEGRAM_CHAT_ID || '';
 const telegramAppName = process.env.TELEGRAM_APP_NAME || '';
@@ -39,6 +40,7 @@ module.exports = {
   jobTimeoutMinutes,
   finalizeStatementTimeoutMs,
   finalizeWorkMemMb,
+  postImportAnalyzeEnabled,
   telegramBotToken,
   telegramChatId,
   telegramAppName,

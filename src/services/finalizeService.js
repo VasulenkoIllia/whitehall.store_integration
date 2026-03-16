@@ -6,6 +6,9 @@ async function buildFinalDataset(jobId) {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query(`SELECT set_config('application_name', $1, true)`, [
+      `whitehall:finalize:${jobId}`
+    ]);
     if (Number.isFinite(finalizeStatementTimeoutMs) && finalizeStatementTimeoutMs > 0) {
       const timeoutMs = Math.max(1000, Math.trunc(finalizeStatementTimeoutMs));
       await client.query(`SELECT set_config('statement_timeout', $1, true)`, [String(timeoutMs)]);
@@ -18,6 +21,7 @@ async function buildFinalDataset(jobId) {
     const importJobResult = await client.query(
       `SELECT id FROM jobs
        WHERE type = 'import_all'
+         AND status = 'success'
        ORDER BY id DESC
        LIMIT 1`
     );

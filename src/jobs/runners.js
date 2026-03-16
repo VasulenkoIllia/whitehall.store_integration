@@ -6,6 +6,7 @@ const { buildFinalDataset } = require('../services/finalizeService');
 const { exportForHoroshop } = require('../services/exportService');
 const { syncHoroshopCatalog, importHoroshopPreview } = require('../services/horoshopService');
 const { cleanupOldData } = require('../services/cleanupService');
+const { postImportAnalyzeEnabled } = require('../config');
 
 const BLOCKING_JOB_TYPES = [
   'update_pipeline',
@@ -231,6 +232,40 @@ async function runStepJob({ type, meta, startMessage, finishMessage, handler, st
   }
 }
 
+async function runPostImportAnalyze(jobId) {
+  if (!postImportAnalyzeEnabled) {
+    return { enabled: false, skipped: true };
+  }
+
+  const startedAt = Date.now();
+  try {
+    await db.query('ANALYZE products_raw');
+    await db.query('ANALYZE suppliers');
+    await db.query('ANALYZE markup_rule_conditions');
+    const result = {
+      enabled: true,
+      skipped: false,
+      durationMs: Date.now() - startedAt,
+      tables: ['products_raw', 'suppliers', 'markup_rule_conditions']
+    };
+    if (jobId) {
+      await logService.log(jobId, 'info', 'Post-import analyze finished', result);
+    }
+    return result;
+  } catch (err) {
+    const result = {
+      enabled: true,
+      skipped: true,
+      durationMs: Date.now() - startedAt,
+      error: err.message
+    };
+    if (jobId) {
+      await logService.log(jobId, 'warning', 'Post-import analyze skipped', result);
+    }
+    return result;
+  }
+}
+
 async function runImportSource(sourceId) {
   let jobId = null;
   let lockAcquired = false;
@@ -320,9 +355,10 @@ async function runImportAll() {
     lockAcquired = true;
     await jobService.startJob(jobId);
     const summary = await importAllSources(jobId);
+    const analyze = await runPostImportAnalyze(jobId);
     await jobService.finishJob(jobId);
-    await logService.log(jobId, 'info', 'Import all sources finished', { summary });
-    return { jobId, summary };
+    await logService.log(jobId, 'info', 'Import all sources finished', { summary, analyze });
+    return { jobId, summary, analyze };
   } catch (err) {
     if (jobId) {
       await jobService.failJob(jobId, err);
@@ -594,9 +630,11 @@ async function runUpdatePipeline(options = {}) {
       finishMessage: 'Import all sources finished',
       handler: (stepJobId) => importAllSources(stepJobId)
     });
+    const importAnalyze = await runPostImportAnalyze(importStep.job.id);
     await logService.log(jobId, 'info', 'Update pipeline import finished', {
       jobId: importStep.job.id,
-      summary: importStep.result
+      summary: importStep.result,
+      analyze: importAnalyze
     });
 
     const finalizeStep = await runStepJob({
@@ -640,6 +678,7 @@ async function runUpdatePipeline(options = {}) {
       exportJobId: exportStep.job.id,
       horoshopImportJobId: horoshopImportStep.job.id,
       importSummary: importStep.result,
+      importAnalyze,
       finalize: finalizeStep.result,
       export: exportStep.result,
       horoshopImport: horoshopImportStep.result
@@ -650,6 +689,7 @@ async function runUpdatePipeline(options = {}) {
       jobId,
       result: {
         importSummary: importStep.result,
+        importAnalyze,
         finalize: finalizeStep.result,
         export: exportStep.result,
         horoshopImport: horoshopImportStep.result

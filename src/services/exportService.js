@@ -256,6 +256,7 @@ async function exportForHoroshop(jobId, options = {}) {
   const finalizeJobResult = await db.query(
     `SELECT id FROM jobs
      WHERE type = 'finalize'
+       AND status = 'success'
      ORDER BY id DESC
      LIMIT 1`
   );

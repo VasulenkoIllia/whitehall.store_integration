@@ -141,10 +141,51 @@ router.post('/:jobId/cancel', async (req, res, next) => {
       return res.status(409).json({ error: 'job is not running' });
     }
     const reason = (req.body && req.body.reason) || 'Canceled by user';
+
+    const childCanceled = [];
+    if (job.type === 'update_pipeline') {
+      const childJobs = await db.query(
+        `SELECT id, type, status
+         FROM jobs
+         WHERE COALESCE(meta->>'pipeline_job_id', '') = $1
+           AND status IN ('running', 'queued')
+         ORDER BY id DESC`,
+        [String(jobId)]
+      );
+      for (const child of childJobs.rows) {
+        const childReason = `Canceled with parent pipeline #${jobId}`;
+        await jobService.cancelJob(child.id, childReason);
+        let childTerminated = [];
+        if (child.status === 'running') {
+          childTerminated = await jobService.terminateJobBackend(child.id, child.type);
+        }
+        const childPids = childTerminated
+          .map((row) => Number(row.pid))
+          .filter(Number.isFinite);
+        await logService.log(child.id, 'error', 'Job canceled', {
+          reason: childReason,
+          jobType: child.type,
+          parentPipelineJobId: jobId,
+          terminatedPids: childPids
+        });
+        childCanceled.push({
+          jobId: Number(child.id),
+          jobType: child.type,
+          terminatedPids: childPids
+        });
+      }
+    }
+
     const canceled = await jobService.cancelJob(jobId, reason);
+    let terminated = [];
+    if (job.status === 'running') {
+      terminated = await jobService.terminateJobBackend(jobId, job.type);
+    }
     await logService.log(jobId, 'error', 'Job canceled', {
       reason,
-      jobType: job.type
+      jobType: job.type,
+      terminatedPids: terminated.map((row) => Number(row.pid)).filter(Number.isFinite),
+      childCanceled
     });
     return res.json({ jobId: canceled?.id || jobId, status: 'canceled' });
   } catch (err) {

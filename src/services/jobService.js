@@ -126,6 +126,45 @@ async function cancelJob(jobId, reason) {
   return result.rows[0] || null;
 }
 
+async function terminateJobBackend(jobId, type) {
+  if (!jobId || !type) {
+    return [];
+  }
+
+  const applicationName = `whitehall:${type}:${jobId}`;
+  const terminatedByAppName = await db.query(
+    `SELECT pid, pg_terminate_backend(pid) AS terminated
+     FROM pg_stat_activity
+     WHERE application_name = $1
+       AND pid <> pg_backend_pid()`,
+    [applicationName]
+  );
+  if (terminatedByAppName.rows.length) {
+    return terminatedByAppName.rows;
+  }
+
+  // Backward-compatible fallback for finalize jobs started before application_name tagging.
+  if (type !== 'finalize') {
+    return [];
+  }
+
+  const fallback = await db.query(
+    `WITH candidate AS (
+       SELECT pid
+       FROM pg_stat_activity
+       WHERE pid <> pg_backend_pid()
+         AND state = 'active'
+         AND query ILIKE '%INSERT INTO products_final%'
+         AND query ILIKE '%WITH base AS (%'
+       ORDER BY query_start ASC
+       LIMIT 1
+     )
+     SELECT pid, pg_terminate_backend(pid) AS terminated
+     FROM candidate`
+  );
+  return fallback.rows;
+}
+
 async function timeoutStaleJobs(timeoutMinutes) {
   if (!Number.isFinite(timeoutMinutes) || timeoutMinutes <= 0) {
     return [];
@@ -158,5 +197,6 @@ module.exports = {
   acquireJobLock,
   releaseJobLock,
   cancelJob,
+  terminateJobBackend,
   timeoutStaleJobs
 };
