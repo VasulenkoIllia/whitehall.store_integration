@@ -3,6 +3,7 @@ const db = require('../db');
 const { detectMappingFromRow, hasRequiredFields, normalizeHeader } = require('./mappingService');
 const logService = require('./logService');
 const { getSheetInfo, getSheetRowChunk } = require('./googleSheetsService');
+const { priceAtImportEnabled } = require('../config');
 
 async function ensureJobActive(jobId) {
   if (!jobId) {
@@ -118,6 +119,118 @@ function parsePrice(rawValue) {
   return { value: parsed, reason: null };
 }
 
+function toFiniteNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function roundTo2(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+async function loadSupplierPricingContext(supplierId) {
+  if (!priceAtImportEnabled || !supplierId) {
+    return null;
+  }
+
+  const supplierResult = await db.query(
+    `SELECT
+       s.id,
+       s.markup_percent,
+       s.min_profit_enabled,
+       s.min_profit_amount,
+       s.markup_rule_set_id,
+       COALESCE(rs.is_active, FALSE) AS rule_set_active
+     FROM suppliers s
+     LEFT JOIN markup_rule_sets rs ON rs.id = s.markup_rule_set_id
+     WHERE s.id = $1`,
+    [supplierId]
+  );
+
+  const supplier = supplierResult.rows[0];
+  if (!supplier) {
+    return null;
+  }
+
+  const context = {
+    markupPercent: toFiniteNumber(supplier.markup_percent, 0),
+    minProfitEnabled: supplier.min_profit_enabled === true,
+    minProfitAmount: toFiniteNumber(supplier.min_profit_amount, 0),
+    ruleSetId: supplier.rule_set_active ? supplier.markup_rule_set_id : null,
+    conditions: []
+  };
+
+  if (!context.ruleSetId) {
+    return context;
+  }
+
+  const conditionsResult = await db.query(
+    `SELECT action_type, action_value, price_from, price_to
+     FROM markup_rule_conditions
+     WHERE rule_set_id = $1
+       AND is_active = TRUE
+     ORDER BY priority ASC, id ASC`,
+    [context.ruleSetId]
+  );
+
+  context.conditions = conditionsResult.rows.map((row) => ({
+    actionType: row.action_type,
+    actionValue: toFiniteNumber(row.action_value, 0),
+    priceFrom: toFiniteNumber(row.price_from, 0),
+    priceTo: row.price_to === null || typeof row.price_to === 'undefined'
+      ? null
+      : toFiniteNumber(row.price_to, null)
+  }));
+
+  return context;
+}
+
+function computeLegacyPrice(priceBase, context) {
+  const base = toFiniteNumber(priceBase, 0);
+  const percent = toFiniteNumber(context?.markupPercent, 0);
+  const minProfitAmount = toFiniteNumber(context?.minProfitAmount, 0);
+  const candidate = base * (1 + percent / 100);
+  if (context?.minProfitEnabled === true && candidate - base < minProfitAmount) {
+    return base + minProfitAmount;
+  }
+  return candidate;
+}
+
+function computePriceWithMarkup(priceBase, context) {
+  const base = toFiniteNumber(priceBase, 0);
+  if (!Number.isFinite(base) || base <= 0) {
+    return null;
+  }
+
+  const legacy = computeLegacyPrice(base, context);
+  if (!context || !context.ruleSetId || !Array.isArray(context.conditions) || !context.conditions.length) {
+    return roundTo2(legacy);
+  }
+
+  const matched = context.conditions.find((condition) => {
+    if (base < condition.priceFrom) {
+      return false;
+    }
+    if (condition.priceTo === null || !Number.isFinite(condition.priceTo)) {
+      return true;
+    }
+    return base < condition.priceTo;
+  });
+
+  if (!matched) {
+    return roundTo2(legacy);
+  }
+
+  if (matched.actionType === 'fixed_add') {
+    return roundTo2(base + matched.actionValue);
+  }
+  if (matched.actionType === 'percent') {
+    return roundTo2(base * (1 + matched.actionValue / 100));
+  }
+
+  return roundTo2(legacy);
+}
+
 function hasMeaningfulValue(value) {
   if (value === null || typeof value === 'undefined') {
     return false;
@@ -203,7 +316,7 @@ async function insertRawBatch(rows) {
   const buildValues = (useRowData) => {
     const values = [];
     const placeholders = rows.map((row, idx) => {
-      const base = idx * 9;
+      const base = idx * 10;
       const rowData = useRowData ? normalizeRowData(row.rowData) : null;
       values.push(
         row.jobId,
@@ -213,10 +326,11 @@ async function insertRawBatch(rows) {
         row.size,
         row.quantity,
         row.price,
+        row.priceWithMarkup,
         row.extra,
         rowData
       );
-      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9})`;
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10})`;
     });
     return { values, placeholders };
   };
@@ -225,7 +339,7 @@ async function insertRawBatch(rows) {
   try {
     await db.query(
       `INSERT INTO products_raw
-       (job_id, supplier_id, source_id, article, size, quantity, price, extra, row_data)
+       (job_id, supplier_id, source_id, article, size, quantity, price, price_with_markup, extra, row_data)
        VALUES ${placeholders.join(', ')}`,
       values
     );
@@ -234,7 +348,7 @@ async function insertRawBatch(rows) {
       const fallback = buildValues(false);
       await db.query(
         `INSERT INTO products_raw
-         (job_id, supplier_id, source_id, article, size, quantity, price, extra, row_data)
+         (job_id, supplier_id, source_id, article, size, quantity, price, price_with_markup, extra, row_data)
          VALUES ${fallback.placeholders.join(', ')}`,
         fallback.values
       );
@@ -264,6 +378,7 @@ async function importExcelFile({
   const batch = [];
   const skipStats = createSkipStats();
   const skipSamples = [];
+  const pricingContext = await loadSupplierPricingContext(supplierId);
 
   for await (const worksheet of workbook) {
     await ensureJobActive(jobId);
@@ -341,6 +456,9 @@ async function importExcelFile({
         size,
         quantity,
         price,
+        priceWithMarkup: priceAtImportEnabled
+          ? computePriceWithMarkup(price, pricingContext)
+          : null,
         extra,
         rowData: values
       });
@@ -416,6 +534,7 @@ async function importGoogleSheetSource({
   const batch = [];
   const skipStats = createSkipStats();
   const skipSamples = [];
+  const pricingContext = await loadSupplierPricingContext(supplierId);
   const maxHeaderScan = 20;
   const chunkSizeRaw = Number(process.env.GOOGLE_SHEETS_CHUNK_SIZE || 10000);
   const chunkSize = Number.isFinite(chunkSizeRaw) ? Math.max(1000, chunkSizeRaw) : 10000;
@@ -709,6 +828,9 @@ async function importGoogleSheetSource({
         size,
         quantity,
         price,
+        priceWithMarkup: priceAtImportEnabled
+          ? computePriceWithMarkup(price, pricingContext)
+          : null,
         extra,
         rowData: rows[i]
       });
