@@ -4,6 +4,8 @@ const { finalizeStatementTimeoutMs, finalizeWorkMemMb } = require('../config');
 
 async function buildFinalDataset(jobId) {
   const client = await db.pool.connect();
+  const startedAt = Date.now();
+  const stageMs = {};
   try {
     await client.query('BEGIN');
     await client.query(`SELECT set_config('application_name', $1, true)`, [
@@ -18,6 +20,7 @@ async function buildFinalDataset(jobId) {
       await client.query(`SELECT set_config('work_mem', $1, true)`, [`${workMemMb}MB`]);
     }
 
+    let stageStartedAt = Date.now();
     const importJobResult = await client.query(
       `SELECT id FROM jobs
        WHERE type = 'import_all'
@@ -25,25 +28,29 @@ async function buildFinalDataset(jobId) {
        ORDER BY id DESC
        LIMIT 1`
     );
+    stageMs.selectImportJob = Date.now() - stageStartedAt;
     const importJobId = importJobResult.rows[0]?.id;
     if (!importJobId) {
       throw new Error('No import_all job found');
     }
 
+    stageStartedAt = Date.now();
     const rawCountResult = await client.query(
       'SELECT COUNT(*) FROM products_raw WHERE job_id = $1',
       [importJobId]
     );
+    stageMs.countRaw = Date.now() - stageStartedAt;
     const rawCount = Number(rawCountResult.rows[0].count || 0);
 
     // Avoid ACCESS EXCLUSIVE lock from TRUNCATE in production.
     // DELETE keeps readers available while finalize transaction is running.
+    stageStartedAt = Date.now();
     await client.query('DELETE FROM products_final');
+    stageMs.clearFinal = Date.now() - stageStartedAt;
 
     const insertSql = `
       WITH base AS (
         SELECT
-          pr.id AS raw_id,
           pr.article,
           pr.size,
           pr.quantity,
@@ -57,27 +64,14 @@ async function buildFinalDataset(jobId) {
               THEN pr.price + s.min_profit_amount
             ELSE pr.price * (1 + s.markup_percent / 100)
           END AS legacy_price,
-          s.markup_rule_set_id AS effective_rule_set_id
+          active_rs.id AS effective_rule_set_id
         FROM products_raw pr
         JOIN suppliers s ON s.id = pr.supplier_id
+        LEFT JOIN markup_rule_sets active_rs
+          ON active_rs.id = s.markup_rule_set_id
+         AND active_rs.is_active = TRUE
         WHERE s.is_active = TRUE
           AND pr.job_id = $2
-      ),
-      rule_match AS (
-        SELECT
-          b.raw_id,
-          c.action_type,
-          c.action_value,
-          ROW_NUMBER() OVER (PARTITION BY b.raw_id ORDER BY c.priority ASC, c.id ASC) AS rn
-        FROM base b
-        JOIN markup_rule_sets rs
-          ON rs.id = b.effective_rule_set_id
-         AND rs.is_active = TRUE
-        JOIN markup_rule_conditions c
-          ON c.rule_set_id = rs.id
-         AND c.is_active = TRUE
-         AND b.price_base >= c.price_from
-         AND (c.price_to IS NULL OR b.price_base < c.price_to)
       ),
       computed AS (
         SELECT
@@ -87,18 +81,26 @@ async function buildFinalDataset(jobId) {
           b.price_base,
           CASE
             WHEN b.effective_rule_set_id IS NULL THEN b.legacy_price
-            WHEN rm.raw_id IS NULL THEN b.legacy_price
-            WHEN rm.action_type = 'fixed_add' THEN b.price_base + rm.action_value
-            WHEN rm.action_type = 'percent' THEN b.price_base * (1 + rm.action_value / 100)
+            WHEN selected_rule.action_type = 'fixed_add' THEN b.price_base + selected_rule.action_value
+            WHEN selected_rule.action_type = 'percent' THEN b.price_base * (1 + selected_rule.action_value / 100)
             ELSE b.legacy_price
           END AS price_with_markup,
           b.extra,
           b.supplier_id,
           b.supplier_priority
         FROM base b
-        LEFT JOIN rule_match rm
-          ON rm.raw_id = b.raw_id
-         AND rm.rn = 1
+        LEFT JOIN LATERAL (
+          SELECT
+            c.action_type,
+            c.action_value
+          FROM markup_rule_conditions c
+          WHERE c.rule_set_id = b.effective_rule_set_id
+            AND c.is_active = TRUE
+            AND b.price_base >= c.price_from
+            AND (c.price_to IS NULL OR b.price_base < c.price_to)
+          ORDER BY c.priority ASC, c.id ASC
+          LIMIT 1
+        ) selected_rule ON TRUE
       ),
       rounded AS (
         SELECT
@@ -167,7 +169,9 @@ async function buildFinalDataset(jobId) {
     `;
 
     try {
+      stageStartedAt = Date.now();
       await client.query(insertSql, [jobId, importJobId]);
+      stageMs.insertFinal = Date.now() - stageStartedAt;
     } catch (err) {
       if (err?.code === '57014') {
         const timeoutMs = Number.isFinite(finalizeStatementTimeoutMs)
@@ -181,6 +185,7 @@ async function buildFinalDataset(jobId) {
       throw err;
     }
 
+    stageStartedAt = Date.now();
     await client.query(
       `UPDATE products_final pf
        SET price_final = po.price_final
@@ -189,16 +194,23 @@ async function buildFinalDataset(jobId) {
          AND pf.article = po.article
          AND NULLIF(pf.size, '') IS NOT DISTINCT FROM NULLIF(po.size, '')`
     );
+    stageMs.applyOverrides = Date.now() - stageStartedAt;
 
+    stageStartedAt = Date.now();
     const finalCountResult = await client.query('SELECT COUNT(*) FROM products_final');
+    stageMs.countFinal = Date.now() - stageStartedAt;
     const finalCount = Number(finalCountResult.rows[0].count || 0);
 
+    stageStartedAt = Date.now();
     await client.query('COMMIT');
+    stageMs.commit = Date.now() - stageStartedAt;
 
     await logService.log(jobId, 'info', 'Final dataset built', {
       rawCount,
       finalCount,
-      importJobId
+      importJobId,
+      durationMs: Date.now() - startedAt,
+      stageMs
     });
 
     return { rawCount, finalCount };
